@@ -103,9 +103,19 @@ zurück.
 
 ## Stand
 
-**Der Treiber läuft unter Windows XP** [345], [349]. XP nimmt die INF über die
-automatische Suche an, der Desktop steht bei **1280×768 in 32 Bit**, Fenster und Menüs
-zeichnen sauber — statt der zähen Cirrus-Emulation aus [336].
+**Der Treiber läuft unter Windows XP** [345], [349], und ist seit [355] die **Vorgabe**
+in `vm/winxp.sh` — `--vga cirrus` ist der Rückweg. XP nimmt die INF über die automatische
+Suche an, der Desktop steht bei **1280×768 in 32 Bit**, Fenster und Menüs zeichnen sauber
+statt der zähen Cirrus-Emulation aus [336].
+
+**Alle vier Passthrough-Strecken sind darauf gemessen** [355]: OpenGL meldet dieselbe
+RTX 3090, Direct3D 8 dieselben 64,1 FPS, DirectDraw 9.576,7 gegen 9.739,1 FPS. Glide
+liegt mit 16.647,9 gegen 18.612,0 FPS **10,5 % niedriger, ungeklärt und nur einmal
+gemessen.**
+
+**Angeboten werden 16 und 32 bpp.** Die 16 Bit kamen erst mit [355] dazu — ohne sie
+scheitert jedes Spiel, das `SetDisplayMode` auf 640×480×16 ruft, mit `E_NOTIMPL`.
+8 bpp fehlt weiterhin; das bräuchte Palettenbehandlung im Miniport.
 
 **Der ICD-Escape wird bedient**, gemessen über die Debug-Konsole:
 

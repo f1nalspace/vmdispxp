@@ -33,6 +33,12 @@ static const BOCHS_SIZE BochsAvailableResolutions[] = {
     { 3840, 2160 }, // 4K UHD-1
 };
 
+/* 16 bpp is RGB 5:6:5, 32 bpp is BGRX 8:8:8:8 -- the two the Bochs interface offers and
+ * the two anything from that era asks for. 8 bpp would need palette handling. */
+static const USHORT BochsAvailableColorDepths[] = { 16, 32 };
+
+#define BOCHS_BYTES_PER_PIXEL(BitsPerPixel) ((BitsPerPixel) / 8)
+
 CODE_SEG("PAGE")
 static VOID
 BochsFreeResources(
@@ -97,7 +103,7 @@ BochsInitializeSuitableModeInfo(
     _In_ PBOCHS_DEVICE_EXTENSION DeviceExtension,
     _In_ ULONG PotentialModeCount)
 {
-    ULONG i, ModeCount = 0;
+    ULONG i, Depth, ModeCount = 0;
 
     for (i = 0; i < ARRAYSIZE(BochsAvailableResolutions) && ModeCount < PotentialModeCount; i++)
     {
@@ -105,9 +111,22 @@ BochsInitializeSuitableModeInfo(
             continue;
         if (BochsAvailableResolutions[i].YResolution > DeviceExtension->MaxYResolution)
             continue;
-        if (BochsAvailableResolutions[i].XResolution * BochsAvailableResolutions[i].YResolution * 4 > DeviceExtension->VramSize64K * 64 * 1024)
-            continue;
-        DeviceExtension->AvailableModeInfo[ModeCount++] = BochsAvailableResolutions[i];
+
+        for (Depth = 0; Depth < ARRAYSIZE(BochsAvailableColorDepths) && ModeCount < PotentialModeCount; Depth++)
+        {
+            USHORT BitsPerPixel = BochsAvailableColorDepths[Depth];
+            ULONG BytesNeeded = (ULONG)BochsAvailableResolutions[i].XResolution *
+                                BochsAvailableResolutions[i].YResolution *
+                                BOCHS_BYTES_PER_PIXEL(BitsPerPixel);
+
+            if (BytesNeeded > DeviceExtension->VramSize64K * 64 * 1024)
+                continue;
+
+            DeviceExtension->AvailableModeInfo[ModeCount].XResolution = BochsAvailableResolutions[i].XResolution;
+            DeviceExtension->AvailableModeInfo[ModeCount].YResolution = BochsAvailableResolutions[i].YResolution;
+            DeviceExtension->AvailableModeInfo[ModeCount].BitsPerPixel = BitsPerPixel;
+            ModeCount++;
+        }
     }
 
     if (ModeCount == 0)
@@ -199,30 +218,45 @@ BochsGetControllerInfo(
 CODE_SEG("PAGE")
 static VOID
 BochsGetModeInfo(
-    _In_ PBOCHS_SIZE AvailableModeInfo,
+    _In_ PBOCHS_MODE AvailableModeInfo,
     _Out_ PVIDEO_MODE_INFORMATION ModeInfo,
     _In_ ULONG Index)
 {
+    USHORT BitsPerPixel = AvailableModeInfo->BitsPerPixel;
+
     VideoDebugPrint((Info, "Bochs: Filling details of mode #%d\n", Index));
 
     ModeInfo->Length = sizeof(*ModeInfo);
     ModeInfo->ModeIndex = Index;
     ModeInfo->VisScreenWidth = AvailableModeInfo->XResolution;
     ModeInfo->VisScreenHeight = AvailableModeInfo->YResolution;
-    ModeInfo->ScreenStride = AvailableModeInfo->XResolution * 4;
+    ModeInfo->ScreenStride = AvailableModeInfo->XResolution * BOCHS_BYTES_PER_PIXEL(BitsPerPixel);
     ModeInfo->NumberOfPlanes = 1;
-    ModeInfo->BitsPerPlane = 32;
+    ModeInfo->BitsPerPlane = BitsPerPixel;
     ModeInfo->Frequency = 60;
 
     /* 960 DPI appears to be common */
     ModeInfo->XMillimeter = AvailableModeInfo->XResolution * 254 / 960;
     ModeInfo->YMillimeter = AvailableModeInfo->YResolution * 254 / 960;
-    ModeInfo->NumberRedBits = 8;
-    ModeInfo->NumberGreenBits = 8;
-    ModeInfo->NumberBlueBits = 8;
-    ModeInfo->RedMask = 0xff0000;
-    ModeInfo->GreenMask = 0x00ff00;
-    ModeInfo->BlueMask = 0x0000ff;
+    if (BitsPerPixel == 16)
+    {
+        /* RGB 5:6:5 */
+        ModeInfo->NumberRedBits = 5;
+        ModeInfo->NumberGreenBits = 6;
+        ModeInfo->NumberBlueBits = 5;
+        ModeInfo->RedMask = 0xf800;
+        ModeInfo->GreenMask = 0x07e0;
+        ModeInfo->BlueMask = 0x001f;
+    }
+    else
+    {
+        ModeInfo->NumberRedBits = 8;
+        ModeInfo->NumberGreenBits = 8;
+        ModeInfo->NumberBlueBits = 8;
+        ModeInfo->RedMask = 0xff0000;
+        ModeInfo->GreenMask = 0x00ff00;
+        ModeInfo->BlueMask = 0x0000ff;
+    }
 
     ModeInfo->AttributeFlags = VIDEO_MODE_GRAPHICS | VIDEO_MODE_COLOR | VIDEO_MODE_NO_OFF_SCREEN;
     ModeInfo->VideoMemoryBitmapWidth = AvailableModeInfo->XResolution;
@@ -248,9 +282,13 @@ BochsMapVideoMemory(
 
     VideoMemory = DeviceExtension->FrameBuffer.RangeStart;
     MapInformation->VideoRamBase = RequestedAddress->RequestedVirtualAddress;
-    MapInformation->VideoRamLength = 4 *
-        DeviceExtension->AvailableModeInfo[DeviceExtension->CurrentMode].XResolution *
-        DeviceExtension->AvailableModeInfo[DeviceExtension->CurrentMode].YResolution;
+    {
+        PBOCHS_MODE CurrentMode = &DeviceExtension->AvailableModeInfo[DeviceExtension->CurrentMode];
+
+        MapInformation->VideoRamLength = (ULONG)CurrentMode->XResolution *
+                                         CurrentMode->YResolution *
+                                         BOCHS_BYTES_PER_PIXEL(CurrentMode->BitsPerPixel);
+    }
 
     Status = VideoPortMapMemory(DeviceExtension,
                                 VideoMemory,
@@ -326,7 +364,7 @@ BochsQueryAvailableModes(
     _Out_ PSTATUS_BLOCK StatusBlock)
 {
     ULONG Count;
-    PBOCHS_SIZE AvailableModeInfo;
+    PBOCHS_MODE AvailableModeInfo;
     PVIDEO_MODE_INFORMATION ModeInfo;
 
     for (Count = 0, AvailableModeInfo = DeviceExtension->AvailableModeInfo, ModeInfo = ReturnedModes;
@@ -350,7 +388,7 @@ BochsSetCurrentMode(
     _In_ PVIDEO_MODE RequestedMode,
     _Out_ PSTATUS_BLOCK StatusBlock)
 {
-    PBOCHS_SIZE AvailableModeInfo;
+    PBOCHS_MODE AvailableModeInfo;
     /* Mask the two high-order bits, which can be set to request special behavior */
     ULONG ModeRequested = RequestedMode->RequestedMode & 0x3fffffff;
     BOOLEAN Ret;
@@ -371,7 +409,7 @@ BochsSetCurrentMode(
     BochsWriteDispI(DeviceExtension, VBE_DISPI_INDEX_ENABLE, VBE_DISPI_DISABLED);
     Ret = BochsWriteDispIAndCheck(DeviceExtension, VBE_DISPI_INDEX_XRES, AvailableModeInfo->XResolution) &&
           BochsWriteDispIAndCheck(DeviceExtension, VBE_DISPI_INDEX_YRES, AvailableModeInfo->YResolution) &&
-          BochsWriteDispIAndCheck(DeviceExtension, VBE_DISPI_INDEX_BPP, 32);
+          BochsWriteDispIAndCheck(DeviceExtension, VBE_DISPI_INDEX_BPP, AvailableModeInfo->BitsPerPixel);
     /* Always enable screen, even if display settings change failed */
     BochsWriteDispI(DeviceExtension, VBE_DISPI_INDEX_ENABLE, VBE_DISPI_LFB_ENABLED | VBE_DISPI_ENABLED);
     if (!Ret)
@@ -395,6 +433,7 @@ BochsSetCurrentMode(
     DbgPortLineHex("qemump: mode set, index ", ModeRequested);
     DbgPortLineHex("qemump: mode width ", AvailableModeInfo->XResolution);
     DbgPortLineHex("qemump: mode height ", AvailableModeInfo->YResolution);
+    DbgPortLineHex("qemump: mode bpp ", AvailableModeInfo->BitsPerPixel);
 
     VideoDebugPrint((Info, "Bochs:BochsSetCurrentMode Exit Mode:%d\n", ModeRequested));
     return TRUE;
@@ -407,7 +446,7 @@ BochsQueryCurrentMode(
     _Out_ PVIDEO_MODE_INFORMATION VideoModeInfo,
     _Out_ PSTATUS_BLOCK StatusBlock)
 {
-    PBOCHS_SIZE AvailableModeInfo;
+    PBOCHS_MODE AvailableModeInfo;
 
     if (DeviceExtension->CurrentMode > DeviceExtension->AvailableModeCount)
     {
@@ -538,10 +577,10 @@ BochsInitialize(
         return FALSE;
     }
 
-    PotentialModeCount = ARRAYSIZE(BochsAvailableResolutions);
+    PotentialModeCount = ARRAYSIZE(BochsAvailableResolutions) * ARRAYSIZE(BochsAvailableColorDepths);
     DeviceExtension->AvailableModeInfo = VideoPortAllocatePool(HwDeviceExtension,
                                                                VpPagedPool,
-                                                               PotentialModeCount * sizeof(BOCHS_SIZE),
+                                                               PotentialModeCount * sizeof(BOCHS_MODE),
                                                                BOCHS_TAG);
     if (!DeviceExtension->AvailableModeInfo)
     {
