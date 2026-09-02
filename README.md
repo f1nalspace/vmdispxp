@@ -17,8 +17,9 @@ Registrierungswege [325]. Der Weg, der bleibt, ist derselbe wie unter 9x: der
 beantwortet das nicht, und ein quelloffener Treiber, der es könnte, war bis jetzt
 nicht in Sicht — VirtualBox' XPDM-Treiber hat den Escape **nicht** [339].
 
-Nebenbei löst der Treiber das zweite Problem aus [336]: QEMUs Cirrus-Emulation ist
-zäh. Hier liegt der Bildspeicher linear, ohne Bankumschaltung.
+Nebenbei gibt der Treiber freie Auflösungen und 16/32 Bit, was Cirrus unter XP nicht
+kann. **Das zweite Problem aus [336] löst er aber nicht**: 2D bleibt unbeschleunigt,
+siehe unten.
 
 ## Herkunft und Lizenz
 
@@ -105,8 +106,15 @@ zurück.
 
 **Der Treiber läuft unter Windows XP** [345], [349], und ist seit [355] die **Vorgabe**
 in `vm/winxp.sh` — `--vga cirrus` ist der Rückweg. XP nimmt die INF über die automatische
-Suche an, der Desktop steht bei **1280×768 in 32 Bit**, Fenster und Menüs zeichnen sauber
-statt der zähen Cirrus-Emulation aus [336].
+Suche an, der Desktop steht bei **1280×768 in 32 Bit**, Fenster und Menüs zeichnen sauber.
+
+**⚠ 2D ist unbeschleunigt** — Angabe des Benutzers, 02.09.2026: beim Verschieben eines
+Fensters vergehen sichtbar Millisekunden, und im Anmelde-Überblendeffekt sieht man jedes
+einzelne Bild. Bauartbedingt: die Funktionstabelle in `display/enable.c` enthält **keine**
+der acht beschleunigten Zeichenfunktionen des DDI (`DrvBitBlt`, `DrvCopyBits`,
+`DrvTextOut`, `DrvStretchBlt`, `DrvFillPath`, `DrvLineTo`, `DrvStrokePath`,
+`DrvSaveScreenBits`). GDI zeichnet jedes Pixel selbst und schreibt es direkt in den
+emulierten Bildspeicher. Ansätze dagegen stehen in `docs/handover.md`.
 
 **Alle vier Passthrough-Strecken sind darauf gemessen** [355]: OpenGL meldet dieselbe
 RTX 3090, Direct3D 8 dieselben 64,1 FPS, DirectDraw 9.576,7 gegen 9.739,1 FPS. Glide
