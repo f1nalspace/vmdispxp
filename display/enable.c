@@ -35,6 +35,16 @@ static DRVFN DrvFunctionTable[] =
    {INDEX_DrvEnableDirectDraw, (PFN)DrvEnableDirectDraw},
    {INDEX_DrvDisableDirectDraw, (PFN)DrvDisableDirectDraw},
    {INDEX_DrvEscape, (PFN)DrvEscape},
+#ifdef QEMUDISP_OWN_PIXEL_FORMATS
+   /* Off, and measured: with these three in the table opengl32 stops asking for the ICD
+    * altogether -- the OPENGL_GETINFO escape goes from 39 calls to none, and OpenGL then
+    * fails outright instead of falling back to software. Announcing pixel formats here
+    * seems to tell opengl32 that this driver renders OpenGL by itself. See docs/LOG.md.
+    */
+   {INDEX_DrvDescribePixelFormat, (PFN)DrvDescribePixelFormat},
+   {INDEX_DrvSetPixelFormat, (PFN)DrvSetPixelFormat},
+   {INDEX_DrvSwapBuffers, (PFN)DrvSwapBuffers},
+#endif
 
 };
 

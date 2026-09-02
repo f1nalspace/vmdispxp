@@ -118,6 +118,14 @@ zeichnen sauber — statt der zähen Cirrus-Emulation aus [336].
 Und `qmfxgl32.dll` **wird daraufhin geladen** — belegt an Dr. Watsons Modulliste, in
 der sie bei den Versuchen vom 01.09. [325] nie auftauchte.
 
+**⚠ Geprüft und verworfen: die Pixelformat-DDI im Anzeigetreiber** [352]. `framebuf`
+hat `DrvDescribePixelFormat`, `DrvSetPixelFormat` und `DrvSwapBuffers` nicht; nachgerüstet
+werden sie zwar gerufen, aber `opengl32.dll` fragt dann den ICD-Escape **gar nicht mehr**
+(39 Aufrufe → 0) und OpenGL scheitert ganz, statt in Software zu laufen. Offenbar hält
+opengl32 einen Treiber mit eigenen `PFD_SUPPORT_OPENGL`-Formaten für einen, der OpenGL
+selbst umsetzt. Der Code bleibt in `display/pixelformat.c` und ist mit
+`make PIXELFORMATS=1` wieder einschaltbar.
+
 **⚠ Offen: `opengl32.dll` rendert trotzdem in Software.** `wglgears` liefert 10–15 FPS
 und erscheint im QMP-Abzug des Gastes, also aus dem Gastspeicher statt vom Host.
 `DrvValidateVersion` im ICD wird **nie gerufen** — nachgewiesen mit einer MessageBox,

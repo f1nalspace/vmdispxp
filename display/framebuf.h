@@ -72,6 +72,24 @@ typedef struct _PDEV
 #define ALLOC_TAG	'FUBF'
 
 
+LONG APIENTRY
+DrvDescribePixelFormat(
+   DHPDEV dhpdev,
+   LONG iPixelFormat,
+   ULONG cjpfd,
+   PIXELFORMATDESCRIPTOR *ppfd);
+
+BOOL APIENTRY
+DrvSetPixelFormat(
+   SURFOBJ *pso,
+   LONG iPixelFormat,
+   HWND hwnd);
+
+BOOL APIENTRY
+DrvSwapBuffers(
+   SURFOBJ *pso,
+   WNDOBJ *pwo);
+
 ULONG APIENTRY
 DrvEscape(
    SURFOBJ *pso,

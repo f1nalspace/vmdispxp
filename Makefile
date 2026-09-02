@@ -30,13 +30,21 @@ DISPLAY_NAME  ?= qemudisp
 # This deliberately differs from the wrappers, which target SSE3.
 ARCH_FLAGS = -march=i686 -mno-sse -mno-mmx -mno-3dnow -mfpmath=387
 
-COMMON_CFLAGS = -Wall -O2 $(ARCH_FLAGS) -ffreestanding -fno-stack-protector -fno-asynchronous-unwind-tables -fno-ident -mno-stack-arg-probe -D_X86_ -DWIN32 -Icompat -Icommon $(DEBUGCON_FLAGS) -isystem $(DDK_INCLUDE)
+COMMON_CFLAGS = -Wall -O2 $(ARCH_FLAGS) -ffreestanding -fno-stack-protector -fno-asynchronous-unwind-tables -fno-ident -mno-stack-arg-probe -D_X86_ -DWIN32 -Icompat -Icommon $(DEBUGCON_FLAGS) $(PIXELFORMAT_FLAGS) -isystem $(DDK_INCLUDE)
 
 # Subsystem 1 is "native"; the version stamp keeps XP happy.
 COMMON_LDFLAGS = -nostdlib -shared -Wl,--subsystem,native -Wl,--major-subsystem-version,5 -Wl,--minor-subsystem-version,1 -Wl,--image-base,0x10000
 
 MINIPORT_SRC = miniport/bochsmp.c
-DISPLAY_SRC  = display/enable.c display/icd.c common/kmem.c display/palette.c display/pointer.c display/screen.c display/surface.c
+# make PIXELFORMATS=1 puts the pixel format DDI back into the driver. It is off because
+# it measurably breaks the ICD path, see display/enable.c -- kept for the next attempt.
+PIXELFORMATS ?= 0
+ifeq ($(PIXELFORMATS),1)
+PIXELFORMAT_FLAGS = -DQEMUDISP_OWN_PIXEL_FORMATS
+PIXELFORMAT_SRC   = display/pixelformat.c
+endif
+
+DISPLAY_SRC  = display/enable.c display/icd.c $(PIXELFORMAT_SRC) common/kmem.c display/palette.c display/pointer.c display/screen.c display/surface.c
 
 MINIPORT_OBJ = $(MINIPORT_SRC:%.c=$(BUILD)/%.o)
 DISPLAY_OBJ  = $(DISPLAY_SRC:%.c=$(BUILD)/%.o)
