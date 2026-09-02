@@ -1,0 +1,74 @@
+; XPDM display driver for QEMU's standard VGA (PCI 1234:1111), announcing the
+; qemu-3dfx OpenGL ICD.
+;
+; The miniport talks the Bochs VBE registers 0x1CE/0x1CF, the display driver adds
+; DrvEscape/OPENGL_GETINFO so that opengl32.dll finds qmfxgl32.dll.
+
+[Version]
+Signature   = "$Windows NT$"
+Class       = Display
+ClassGUID   = {4D36E968-E325-11CE-BFC1-08002BE10318}
+Provider    = %Provider%
+DriverVer   = 09/02/2026,1.0.0.0
+
+[DestinationDirs]
+DefaultDestDir  = 11
+QemuFx.Miniport = 12
+QemuFx.Display  = 11
+
+[Manufacturer]
+%Provider% = QemuFx
+
+[QemuFx]
+%QemuFx.DeviceDesc% = QemuFx_Install, PCI\VEN_1234&DEV_1111
+
+[QemuFx_Install]
+CopyFiles = QemuFx.Miniport, QemuFx.Display
+AddReg    = QemuFx_OpenGL_AddReg
+
+[QemuFx.Miniport]
+qemump.sys
+
+[QemuFx.Display]
+qemudisp.dll
+
+[QemuFx_Install.Services]
+AddService = qemump, 0x00000002, QemuFx_Service
+
+[QemuFx_Service]
+ServiceType    = 1              ; SERVICE_KERNEL_DRIVER
+StartType      = 1              ; SERVICE_SYSTEM_START
+ErrorControl   = 0              ; SERVICE_ERROR_IGNORE
+LoadOrderGroup = Video
+ServiceBinary  = %12%\qemump.sys
+
+[QemuFx_Install.SoftwareSettings]
+AddReg = QemuFx_SoftwareDeviceSettings
+
+[QemuFx_SoftwareDeviceSettings]
+HKR,, InstalledDisplayDrivers, %REG_MULTI_SZ%, qemudisp
+HKR,, VgaCompatible,           %REG_DWORD%,    0
+HKR,, Acceleration.Level,      %REG_DWORD%,    0
+
+; The escape hands out the key name, opengl32.dll looks the library up here.
+; XP reads the plain Windows branch, the NT branch is set as well because both
+; are documented and neither costs anything.
+[QemuFx_OpenGL_AddReg]
+HKLM,"Software\Microsoft\Windows\CurrentVersion\OpenGLdrivers",   "QEMUFX", 0x00000000, "qmfxgl32.dll"
+HKLM,"Software\Microsoft\Windows NT\CurrentVersion\OpenGLdrivers","QEMUFX", 0x00000000, "qmfxgl32.dll"
+
+[SourceDisksNames]
+1 = %DiskName%,,,""
+
+[SourceDisksFiles]
+qemump.sys   = 1
+qemudisp.dll = 1
+
+[Strings]
+REG_SZ       = 0x00000000
+REG_MULTI_SZ = 0x00010000
+REG_DWORD    = 0x00010001
+
+Provider           = "qemu-3dfx-build"
+DiskName           = "QEMU 3dfx display driver disk"
+QemuFx.DeviceDesc  = "QEMU Standard VGA (qemu-3dfx ICD)"

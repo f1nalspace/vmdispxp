@@ -1,0 +1,4 @@
+; win32k calls DrvEnableDriver through the PE entry point, but real display
+; drivers export it by name as well -- keep both, and nothing else.
+EXPORTS
+    DrvEnableDriver = DrvEnableDriver@12
