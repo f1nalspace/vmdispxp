@@ -44,7 +44,7 @@ PIXELFORMAT_FLAGS = -DQEMUDISP_OWN_PIXEL_FORMATS
 PIXELFORMAT_SRC   = display/pixelformat.c
 endif
 
-DISPLAY_SRC  = display/enable.c display/icd.c $(PIXELFORMAT_SRC) common/kmem.c display/palette.c display/pointer.c display/screen.c display/surface.c
+DISPLAY_SRC  = display/enable.c display/accel.c display/icd.c $(PIXELFORMAT_SRC) common/kmem.c display/palette.c display/pointer.c display/screen.c display/surface.c
 
 MINIPORT_OBJ = $(MINIPORT_SRC:%.c=$(BUILD)/%.o)
 DISPLAY_OBJ  = $(DISPLAY_SRC:%.c=$(BUILD)/%.o)

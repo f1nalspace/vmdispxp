@@ -35,6 +35,24 @@ static DRVFN DrvFunctionTable[] =
    {INDEX_DrvEnableDirectDraw, (PFN)DrvEnableDirectDraw},
    {INDEX_DrvDisableDirectDraw, (PFN)DrvDisableDirectDraw},
    {INDEX_DrvEscape, (PFN)DrvEscape},
+
+   /* Every drawing function of the DDI, hooked for the shadow buffer in display/accel.c.
+    * The list has to be complete: one unhooked function is one way for GDI to change the
+    * shadow without the driver hearing about it, and those pixels never reach the screen. */
+   {INDEX_DrvBitBlt, (PFN)DrvBitBlt},
+   {INDEX_DrvCopyBits, (PFN)DrvCopyBits},
+   {INDEX_DrvStretchBlt, (PFN)DrvStretchBlt},
+   {INDEX_DrvStretchBltROP, (PFN)DrvStretchBltROP},
+   {INDEX_DrvPlgBlt, (PFN)DrvPlgBlt},
+   {INDEX_DrvTextOut, (PFN)DrvTextOut},
+   {INDEX_DrvPaint, (PFN)DrvPaint},
+   {INDEX_DrvLineTo, (PFN)DrvLineTo},
+   {INDEX_DrvStrokePath, (PFN)DrvStrokePath},
+   {INDEX_DrvFillPath, (PFN)DrvFillPath},
+   {INDEX_DrvStrokeAndFillPath, (PFN)DrvStrokeAndFillPath},
+   {INDEX_DrvTransparentBlt, (PFN)DrvTransparentBlt},
+   {INDEX_DrvAlphaBlend, (PFN)DrvAlphaBlend},
+   {INDEX_DrvGradientFill, (PFN)DrvGradientFill},
 #ifdef QEMUDISP_OWN_PIXEL_FORMATS
    /* Off, and measured: with these three in the table opengl32 stops asking for the ICD
     * altogether -- the OPENGL_GETINFO escape goes from 39 calls to none, and OpenGL then

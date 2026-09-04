@@ -104,31 +104,60 @@ DrvEnableSurface(
    }
 
    ppdev->iDitherFormat = BitmapType;
+   ppdev->BytesPerPixel = ppdev->BitsPerPixel / 8;
 
    ScreenSize.cx = ppdev->ScreenWidth;
    ScreenSize.cy = ppdev->ScreenHeight;
 
+   /* The surface GDI draws on is a bitmap in system memory, not the frame buffer. Passing
+    * NULL for the bits lets GDI allocate them; the stride is kept identical to the
+    * adapter's so that copying a rectangle over is a row-for-row memcpy.
+    *
+    * The frame buffer is deliberately not handed to GDI any more. It is written to in
+    * IntFlushRectangle and nowhere else -- reading it back costs 46 MB/s, see accel.c. */
    hSurface = (HSURF)EngCreateBitmap(ScreenSize, ppdev->ScreenDelta, BitmapType,
                                      (ppdev->ScreenDelta > 0) ? BMF_TOPDOWN : 0,
-                                     ppdev->ScreenPtr);
+                                     NULL);
    if (hSurface == NULL)
    {
       DbgPortLine("qemudisp: EngCreateBitmap failed");
       return NULL;
    }
 
+   ppdev->psoShadow = EngLockSurface(hSurface);
+   if (ppdev->psoShadow == NULL)
+   {
+      DbgPortLine("qemudisp: EngLockSurface failed");
+      EngDeleteSurface(hSurface);
+      return NULL;
+   }
+   ppdev->ShadowBits = (PBYTE)ppdev->psoShadow->pvBits;
+   ppdev->hsurfShadow = hSurface;
+   DbgPortLineHex("qemudisp: shadow buffer at ", (unsigned long)ppdev->ShadowBits);
+
    /*
-    * Associate the surface with our device.
+    * Associate the surface with our device, and hook every drawing function of the DDI:
+    * anything left unhooked would let GDI change the shadow without the driver noticing,
+    * and the change would never reach the screen.
     */
 
-   if (!EngAssociateSurface(hSurface, ppdev->hDevEng, 0))
+   if (!EngAssociateSurface(hSurface, ppdev->hDevEng, QEMUDISP_SHADOW_HOOKS))
    {
       DbgPortLine("qemudisp: EngAssociateSurface failed");
+      EngUnlockSurface(ppdev->psoShadow);
+      ppdev->psoShadow = NULL;
+      ppdev->ShadowBits = NULL;
+      ppdev->hsurfShadow = NULL;
       EngDeleteSurface(hSurface);
       return NULL;
    }
 
    ppdev->hSurfEng = hSurface;
+   IntRegisterScreenSurface(hSurface, ppdev);
+
+   /* GDI hands out a zeroed bitmap, the adapter shows whatever was left in its memory.
+    * One copy puts the two in step before the first drawing call arrives. */
+   IntFlushWholeScreen(ppdev);
 
    DbgPortLine("qemudisp: DrvEnableSurface ok");
    return hSurface;
@@ -151,6 +180,15 @@ DrvDisableSurface(
    DWORD ulTemp;
    VIDEO_MEMORY VideoMemory;
    PPDEV ppdev = (PPDEV)dhpdev;
+
+   IntUnregisterScreenSurface(ppdev->hSurfEng);
+   if (ppdev->psoShadow != NULL)
+   {
+      EngUnlockSurface(ppdev->psoShadow);
+      ppdev->psoShadow = NULL;
+   }
+   ppdev->ShadowBits = NULL;
+   ppdev->hsurfShadow = NULL;
 
    EngDeleteSurface(ppdev->hSurfEng);
    ppdev->hSurfEng = NULL;
@@ -203,6 +241,10 @@ DrvAssertMode(
       {
 	     IntSetPalette(dhpdev, ppdev->PaletteEntries, 0, 256);
       }
+
+      /* Coming back from a full screen DOS box or another desktop, the adapter's memory
+       * holds whatever that left behind. The shadow still has the truth. */
+      IntFlushWholeScreen(ppdev);
 
       return TRUE;
    }
