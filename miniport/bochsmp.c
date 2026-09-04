@@ -273,7 +273,12 @@ BochsMapVideoMemory(
 {
     VP_STATUS Status;
     PHYSICAL_ADDRESS VideoMemory;
-    ULONG MemSpace = VIDEO_MEMORY_SPACE_MEMORY;
+    /* qemu-3dfx: P6CACHE asks for a write-combined (USWC) mapping instead of the plain
+     * uncached one. On an emulated adapter that is not a nicety -- the host here is an
+     * AMD, and under NPT the guest's own memory type is what the hardware uses, so an
+     * uncached mapping really does turn every store into a single bus transaction.
+     * Measured before the change: 41.6 MB/s filling the screen, see docs/LOG.md. */
+    ULONG MemSpace = VIDEO_MEMORY_SPACE_MEMORY | VIDEO_MEMORY_SPACE_P6CACHE;
 
     VideoDebugPrint((Info, "Bochs: BochsMapVideoMemory Entry\n"));
 
@@ -295,6 +300,18 @@ BochsMapVideoMemory(
                                 &MapInformation->VideoRamLength,
                                 &MemSpace,
                                 &MapInformation->VideoRamBase);
+    if (Status != NO_ERROR && MemSpace != VIDEO_MEMORY_SPACE_MEMORY)
+    {
+        DbgPortLineHex("qemump: write-combined mapping refused, status ", Status);
+        MemSpace = VIDEO_MEMORY_SPACE_MEMORY;
+        MapInformation->VideoRamBase = RequestedAddress->RequestedVirtualAddress;
+        Status = VideoPortMapMemory(DeviceExtension,
+                                    VideoMemory,
+                                    &MapInformation->VideoRamLength,
+                                    &MemSpace,
+                                    &MapInformation->VideoRamBase);
+    }
+
     if (Status != NO_ERROR)
     {
         VideoDebugPrint((Error, "BochsMapVideoMemory - VideoPortMapMemory failed status:%x\n", Status));
@@ -302,6 +319,8 @@ BochsMapVideoMemory(
         StatusBlock->Status = Status;
         return FALSE;
     }
+
+    DbgPortLineHex("qemump: mapping mode ", MemSpace);
 
     DbgPortLineHex("qemump: mapped to virtual ", (unsigned long)MapInformation->VideoRamBase);
     DbgPortLineHex("qemump: mapped length ", MapInformation->VideoRamLength);
