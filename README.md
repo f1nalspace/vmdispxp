@@ -5,7 +5,11 @@ Das NT-Gegenstück zu `vmdisp9x`: ein Anzeigetreiberpaar für Windows 2000/XP au
 qemu-3dfx-ICD `qmfxgl32.dll` bekanntgibt.
 
     qemump.sys     Miniport, spricht die Bochs-VBE-Register 0x1CE/0x1CF
-    qemudisp.dll   Anzeigetreiber (XPDM), beantwortet OPENGL_GETINFO
+    qemudisp.dll   Anzeigetreiber (XPDM), Schattenpuffer fuer 2D, beantwortet OPENGL_GETINFO
+
+    tools/gdibench  2D-Durchsatz von GDI, im Gast gemessen
+    tools/ddbench   dasselbe fuer DirectDraw, gegen das eigene ddraw.dll von Windows
+    tools/modes     angebotene Bildschirmmodi auflisten und einen davon setzen
 
 **⚠ XPDM, nicht WDDM.** WDDM kam erst mit Vista; XP kennt nur das ältere Modell.
 
@@ -18,8 +22,7 @@ beantwortet das nicht, und ein quelloffener Treiber, der es könnte, war bis jet
 nicht in Sicht — VirtualBox' XPDM-Treiber hat den Escape **nicht** [339].
 
 Nebenbei gibt der Treiber freie Auflösungen und 16/32 Bit, was Cirrus unter XP nicht
-kann. **Das zweite Problem aus [336] löst er aber nicht**: 2D bleibt unbeschleunigt,
-siehe unten.
+kann — und seit dem 04.09.2026 ist auch **2D schnell**, siehe den nächsten Abschnitt.
 
 ## Herkunft und Lizenz
 
@@ -45,11 +48,13 @@ sind angepasst, beide Stellen tragen einen `qemu-3dfx:`-Kommentar:
 Von uns selbst sind:
 
     display/icd.c       der DrvEscape mit QUERYESCSUPPORT und OPENGL_GETINFO
+    display/accel.c     der Schattenpuffer und die vierzehn eingehakten Zeichenfunktionen
     common/kmem.c       memcpy und memset, siehe unten -- der Grund, warum es sie gibt
     common/dbgport.h    Diagnose ueber QEMUs Debug-Konsole auf Port 0xE9
 
-Dazu je eine Zeile in `display/enable.c` (Funktionstabelle) und `display/framebuf.h`
-(Deklaration).
+Dazu Änderungen in `display/enable.c` (Funktionstabelle), `display/framebuf.h` (PDEV und
+Deklarationen), `display/surface.c` (die Fläche ist jetzt der Schatten) und
+`miniport/bochsmp.c` (write-combined Abbildung, 16 bpp).
 
 ## Bauen
 
@@ -108,13 +113,35 @@ zurück.
 in `vm/winxp.sh` — `--vga cirrus` ist der Rückweg. XP nimmt die INF über die automatische
 Suche an, der Desktop steht bei **1280×768 in 32 Bit**, Fenster und Menüs zeichnen sauber.
 
-**⚠ 2D ist unbeschleunigt** — Angabe des Benutzers, 02.09.2026: beim Verschieben eines
-Fensters vergehen sichtbar Millisekunden, und im Anmelde-Überblendeffekt sieht man jedes
-einzelne Bild. Bauartbedingt: die Funktionstabelle in `display/enable.c` enthält **keine**
-der acht beschleunigten Zeichenfunktionen des DDI (`DrvBitBlt`, `DrvCopyBits`,
-`DrvTextOut`, `DrvStretchBlt`, `DrvFillPath`, `DrvLineTo`, `DrvStrokePath`,
-`DrvSaveScreenBits`). GDI zeichnet jedes Pixel selbst und schreibt es direkt in den
-emulierten Bildspeicher. Ansätze dagegen stehen in `docs/handover.md`.
+**⭐ 2D ist seit dem 04.09.2026 schnell** — und zwar durch zwei Änderungen, die beide
+nichts beschleunigen, sondern nur den Speicher wechseln, auf dem GDI arbeitet. Gemessen
+mit `tools/gdibench`, Einzelheiten in `docs/LOG.md` [381]–[386].
+
+1. **Der Bildspeicher wird write-combined abgebildet** (`VIDEO_MEMORY_SPACE_P6CACHE` in
+   `miniport/bochsmp.c`) statt ungecacht. Auf einem AMD-Host mit NPT gilt der Speichertyp
+   des Gastes wirklich — ungecacht heißt dort ungecacht, und das waren **41 MB/s**.
+2. **GDI zeichnet in einen Schattenpuffer im Systemspeicher** (`display/accel.c`), und der
+   Treiber kopiert nach jeder Zeichenoperation nur das berührte Rechteck in den
+   Bildspeicher. Das erledigt die Lesezugriffe, die write-combined nicht billiger macht.
+
+| 1280×768×32 | vorher | nur write-combined | + Schattenpuffer |
+|---|---|---|---|
+| Vollflächig füllen | 90,18 ms | 0,20 ms | 0,43 ms |
+| Bildschirm → Speicher | 81,70 ms | 9,71 ms | 0,09 ms |
+| Fenster schieben | 17,02 ms | 3,23 ms | **0,07 ms** |
+| Überblenden (`AlphaBlend`) | 261,37 ms | 253,78 ms | **2,61 ms** |
+
+**⚠ Die Hakenliste muss vollständig bleiben.** Eingehakt sind alle vierzehn
+Zeichenfunktionen des DDI. Eine, die fehlt, ist ein Weg, auf dem GDI den Schatten ändert,
+ohne dass der Treiber davon erfährt — diese Pixel kämen nie auf den Bildschirm. Wer eine
+Funktion hinzufügt, trägt sie in `QEMUDISP_SHADOW_HOOKS` **und** in die Funktionstabelle
+in `display/enable.c` ein.
+
+**DirectDraw braucht dafür nichts eigenes.** Der Treiber meldet keine DirectDraw-Rückrufe,
+DirectDraw legt seine Flächen deshalb in den Systemspeicher und bringt sie über GDI auf
+den Schirm — also über dieselben Haken, mit einem Kopiervorgang je Bild. Gemessen mit
+`tools/ddbench`: **1565 volle Bilder je Sekunde** bei 1280×720×32, 7790 bei 640×480×16.
+Ein eigener HAL wurde bewusst nicht gebaut, die Begründung steht in `docs/LOG.md` [385].
 
 **Alle vier Passthrough-Strecken sind darauf gemessen** [355]: OpenGL meldet dieselbe
 RTX 3090, Direct3D 8 dieselben 64,1 FPS, DirectDraw 9.576,7 gegen 9.739,1 FPS. Glide
@@ -124,6 +151,11 @@ gemessen.**
 **Angeboten werden 16 und 32 bpp.** Die 16 Bit kamen erst mit [355] dazu — ohne sie
 scheitert jedes Spiel, das `SetDisplayMode` auf 640×480×16 ruft, mit `E_NOTIMPL`.
 8 bpp fehlt weiterhin; das bräuchte Palettenbehandlung im Miniport.
+
+**⚠ Die Auflösungsliste kürzt Windows am Monitor-EDID, nicht der Treiber** [386]. Ohne
+Zutun endet sie bei 1920×1080 — 1600×1200 fehlt, obwohl es **weniger** Bildspeicher
+braucht. `sh vm/winxp.sh --vga-res 2560x1440` gibt dem Gerät ein anderes EDID mit, und
+1600×1200 sowie 2560×1440 erscheinen. `--no-edid` zeigt alles, was der Treiber anbietet.
 
 **Der ICD-Escape wird bedient**, gemessen über die Debug-Konsole:
 
