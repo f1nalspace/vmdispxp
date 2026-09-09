@@ -94,18 +94,39 @@ Aufrufe von sich selbst ersetzt.
 2. `ExtEscape(hdc, OPENGL_GETINFO, …)` — 532 Bytes zurück.
 
 Zurück kommt **nicht** der Name der Bibliothek, sondern der Name des
-Registrierungsschlüssels darunter:
+Registrierungsschlüssels darunter. **Unter NT ist das ein Unterschlüssel mit vier
+Werten**, nicht ein schlichter Wert wie unter Windows 9x:
 
-    HKLM\Software\Microsoft\Windows\CurrentVersion\OpenGLdrivers\QEMUFX = "qmfxgl32.dll"
+    HKLM\Software\Microsoft\Windows NT\CurrentVersion\OpenGLDrivers\QEMUFX
+        DLL           REG_SZ     qmfxgl32.dll
+        Flags         REG_DWORD  1
+        Version       REG_DWORD  2
+        DriverVersion REG_DWORD  1
 
 Die 532 Bytes sind `4 + 4 + 262 * sizeof(WCHAR)`. Unter 9x steht der Name als CHAR,
 unter NT als WCHAR — der einzige Unterschied zwischen den beiden Fassungen. Die
 Konstanten `QUERYESCSUPPORT` (8) und `OPENGL_GETINFO` (4353 = 0x1101) kommen aus
 `wingdi.h` und `winddi.h`, sind also nicht geraten.
 
-Die INF setzt den Schlüssel selbst. **Zum Abschalten für eine Gegenprobe genügt es,
-den Wert `QEMUFX` zu löschen** — dann fällt Windows auf seine Software-Umsetzung
-zurück.
+**⚠ `Flags` Bit 0 ist der Schalter, an dem die ganze Strecke hängt.** Ohne ihn lädt
+`opengl32.dll` den ICD, nimmt ihn an — und fragt ihn danach **nie** nach einem
+Pixelformat: `__DrvDescribePixelFormat` und `__DrvSetPixelFormat` prüfen das Bit und
+fallen sonst auf Windows' eigene, generische Formate zurück. Die tragen
+`PFD_GENERIC_FORMAT`, und damit geht `wglCreateContext` zwingend in die
+Software-Umsetzung. Genau das war der offene Punkt aus `docs/LOG.md` [350]/[352];
+gelesen wurde er aus XPs eigenem `opengl32.dll`, siehe [427].
+
+**⚠ `Version` und `DriverVersion` müssen wiederholen, was der Escape ausgibt** — die
+beiden ersten DWORDs aus `display/icd.c`. `opengl32.dll` vergleicht sie und verwirft den
+Treiber bei Abweichung. `Version` **muss** dabei 2 sein, ein anderer Wert wird gar nicht
+erst geprüft.
+
+Fehlt der Unterschlüssel, fällt `opengl32.dll` auf die 9x-Schreibweise zurück — denselben
+Namen als `REG_SZ`-Wert im Schlüssel darüber — und setzt `Flags` dann fest auf 0. Der Weg
+trägt also, führt aber in die Software.
+
+Die INF setzt beides selbst. **Zum Abschalten für eine Gegenprobe genügt es, den
+Unterschlüssel `QEMUFX` zu löschen oder seinen `Flags`-Wert auf 0 zu setzen.**
 
 ## Stand
 
@@ -176,12 +197,19 @@ opengl32 einen Treiber mit eigenen `PFD_SUPPORT_OPENGL`-Formaten für einen, der
 selbst umsetzt. Der Code bleibt in `display/pixelformat.c` und ist mit
 `make PIXELFORMATS=1` wieder einschaltbar.
 
-**⚠ Offen: `opengl32.dll` rendert trotzdem in Software.** `wglgears` liefert 10–15 FPS
-und erscheint im QMP-Abzug des Gastes, also aus dem Gastspeicher statt vom Host.
-`DrvValidateVersion` im ICD wird **nie gerufen** — nachgewiesen mit einer MessageBox,
-nicht nur mit einem Log. Was `opengl32.dll` zwischen `LoadLibrary` und der ersten
-Treiberfunktion sonst noch prüft, ist von hier aus nicht einsehbar. Einzelheiten in
-`docs/LOG.md` [350], [351].
+**⭐ Und seit dem 09.09.2026 rendert `opengl32.dll` darüber auch wirklich** [427]–[429].
+Der frühere offene Punkt — „lädt den ICD, benutzt ihn aber nicht" — waren die vier
+Registrierungswerte oben, nicht fehlender Code. Belegt an zwei Stellen:
+
+    glcube ohne eine Datei von uns im Ordner   NVIDIA GeForce RTX 3090/PCIe/SSE2, 7497,4 FPS
+    Quake III Arena, opengl32.dll umbenannt    "255 PFDs found", "hardware acceleration found"
+
+Quake III sagt den Pfad selbst: `LoadLibrary( 'C:\WINDOWS\system32\opengl32.dll' )`.
+
+**⚠ Der ICD-Weg kostet Durchsatz — rund ein Drittel, Ursache nicht untersucht.** Derselbe
+`glcube` liefert mit unserer `opengl32.dll` im Ordner 11514,0 statt 7497,4 FPS. Bei
+Bildraten in dieser Höhe sagt das über Spiele nichts; an einem echten Titel ist es noch
+nicht gemessen.
 
 ### Diagnose
 
