@@ -99,7 +99,7 @@ Werten**, nicht ein schlichter Wert wie unter Windows 9x:
 
     HKLM\Software\Microsoft\Windows NT\CurrentVersion\OpenGLDrivers\QEMUFX
         DLL           REG_SZ     qmfxgl32.dll
-        Flags         REG_DWORD  1
+        Flags         REG_DWORD  3
         Version       REG_DWORD  2
         DriverVersion REG_DWORD  1
 
@@ -108,13 +108,27 @@ unter NT als WCHAR — der einzige Unterschied zwischen den beiden Fassungen. Di
 Konstanten `QUERYESCSUPPORT` (8) und `OPENGL_GETINFO` (4353 = 0x1101) kommen aus
 `wingdi.h` und `winddi.h`, sind also nicht geraten.
 
-**⚠ `Flags` Bit 0 ist der Schalter, an dem die ganze Strecke hängt.** Ohne ihn lädt
+**⚠ `Flags` hat zwei Bits, und beide zählen.**
+
+**Bit 0 ist der Schalter, an dem die ganze Strecke hängt.** Ohne ihn lädt
 `opengl32.dll` den ICD, nimmt ihn an — und fragt ihn danach **nie** nach einem
 Pixelformat: `__DrvDescribePixelFormat` und `__DrvSetPixelFormat` prüfen das Bit und
 fallen sonst auf Windows' eigene, generische Formate zurück. Die tragen
 `PFD_GENERIC_FORMAT`, und damit geht `wglCreateContext` zwingend in die
 Software-Umsetzung. Genau das war der offene Punkt aus `docs/LOG.md` [350]/[352];
 gelesen wurde er aus XPs eigenem `opengl32.dll`, siehe [427].
+
+**Bit 1 kostet ein Drittel der Bildrate, wenn es fehlt.** `__DrvSwapBuffers` ruft sonst vor
+**jedem** `SwapBuffers` ein `glFinish()`:
+
+    5f0ec4f7:  test al,0x2       ; Flags & 2
+    5f0ec4f9:  jne  0x5f0ec500   ; gesetzt: ueberspringen
+    5f0ec4fb:  call 0x5f0d3fa8   ; _glFinish@0
+    5f0ec503:  call DWORD PTR [esi+0x54]   ; ICD->DrvSwapBuffers
+
+Über die Gerätegrenze ist das ein voller Rundlauf, der auf die GPU wartet. Gemessen mit
+`glcube`: **7497,4 FPS mit `Flags=1` gegen 11414,8 FPS mit `Flags=3`**, bei unverändert
+bestandenem Transparenztest. Siehe [432].
 
 **⚠ `Version` und `DriverVersion` müssen wiederholen, was der Escape ausgibt** — die
 beiden ersten DWORDs aus `display/icd.c`. `opengl32.dll` vergleicht sie und verwirft den
@@ -206,10 +220,10 @@ Registrierungswerte oben, nicht fehlender Code. Belegt an zwei Stellen:
 
 Quake III sagt den Pfad selbst: `LoadLibrary( 'C:\WINDOWS\system32\opengl32.dll' )`.
 
-**⚠ Der ICD-Weg kostet Durchsatz — rund ein Drittel, Ursache nicht untersucht.** Derselbe
-`glcube` liefert mit unserer `opengl32.dll` im Ordner 11514,0 statt 7497,4 FPS. Bei
-Bildraten in dieser Höhe sagt das über Spiele nichts; an einem echten Titel ist es noch
-nicht gemessen.
+**Der ICD-Weg kostet nichts mehr** [432]. Er lag anfangs ein Drittel zurück; die Ursache war
+das erzwungene `glFinish` vor jedem `SwapBuffers`, das `Flags` Bit 1 abschaltet. Mit
+`Flags=3` liefert `glcube` über den ICD **11414,8 FPS** gegen 10856,5 FPS mit unserer
+`opengl32.dll` im Ordner, im selben Lauf gemessen — die beiden Wege sind gleichauf.
 
 ### Diagnose
 

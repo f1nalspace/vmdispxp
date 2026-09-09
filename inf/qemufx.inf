@@ -52,16 +52,22 @@ HKR,, Acceleration.Level,      %REG_DWORD%,    0
 
 ; The escape hands out the key name, opengl32.dll looks the library up here. Under NT that
 ; name is a *subkey* with four values, not a plain REG_SZ value like on Windows 9x -- read
-; out of XPs own opengl32.dll, see docs/LOG.md [427]. Flags bit 0 is the one that matters:
-; without it opengl32.dll loads the ICD, accepts it and then never asks it for a pixel
-; format, so every application ends up on the generic software formats.
+; out of XPs own opengl32.dll, see docs/LOG.md [427] and [432].
+;
+; Flags bit 0 -- without it opengl32.dll loads the ICD, accepts it and then never asks it for
+;   a pixel format, so every application ends up on the generic software formats and renders
+;   in software.
+; Flags bit 1 -- without it opengl32.dll calls glFinish() before every single SwapBuffers
+;   (__DrvSwapBuffers checks the bit). Across the device boundary that is a full round trip
+;   that waits for the GPU, and it costs a third of the frame rate: 7497 instead of 11415 FPS.
+;
 ; Version and DriverVersion have to repeat what the OPENGL_GETINFO escape hands out
 ; (display/icd.c) -- opengl32.dll compares the two and drops the driver when they differ.
 ; The 9x style value stays next to it; Windows 9x reads only that one and ignores the rest.
 [QemuFx_OpenGL_AddReg]
 HKLM,"Software\Microsoft\Windows\CurrentVersion\OpenGLdrivers",          "QEMUFX",        0x00000000, "qmfxgl32.dll"
 HKLM,"Software\Microsoft\Windows NT\CurrentVersion\OpenGLdrivers\QEMUFX","DLL",           0x00000000, "qmfxgl32.dll"
-HKLM,"Software\Microsoft\Windows NT\CurrentVersion\OpenGLdrivers\QEMUFX","Flags",         0x00010001, 1
+HKLM,"Software\Microsoft\Windows NT\CurrentVersion\OpenGLdrivers\QEMUFX","Flags",         0x00010001, 3
 HKLM,"Software\Microsoft\Windows NT\CurrentVersion\OpenGLdrivers\QEMUFX","Version",       0x00010001, 2
 HKLM,"Software\Microsoft\Windows NT\CurrentVersion\OpenGLdrivers\QEMUFX","DriverVersion", 0x00010001, 1
 
