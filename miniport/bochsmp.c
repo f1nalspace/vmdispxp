@@ -617,6 +617,75 @@ BochsInitialize(
     return TRUE;
 }
 
+#ifdef QEMU_PASSTHROUGH_PROBE
+/* qemu-3dfx: MmMapIoSpace comes from ntoskrnl, which a miniport may import and a display
+ * driver may not (docs/LOG.md [348]). wdm.h does not mix with miniport.h, so the declaration
+ * is spelled out here; the last parameter is a MEMORY_CACHING_TYPE. */
+#define PASSTHROUGH_MEMORY_NON_CACHED 0
+#define PASSTHROUGH_MEMORY_CACHED     1
+
+PVOID NTAPI
+MmMapIoSpace(
+    _In_ PHYSICAL_ADDRESS PhysicalAddress,
+    _In_ ULONG NumberOfBytes,
+    _In_ ULONG CacheType);
+
+CODE_SEG("PAGE")
+static PVOID
+BochsMapPassthroughPiece(
+    _In_ ULONG PhysicalBase,
+    _In_ ULONG PageCount,
+    _In_ ULONG CacheType)
+{
+    PHYSICAL_ADDRESS PhysicalAddress;
+    ULONG ByteCount = PageCount * PAGE_SIZE;
+    PVOID VirtualAddress;
+
+    PhysicalAddress.QuadPart = PhysicalBase;
+    VirtualAddress = MmMapIoSpace(PhysicalAddress, ByteCount, CacheType);
+    DbgPortLineHex("qemump: passthrough physical ", PhysicalBase);
+    DbgPortLineHex("qemump: passthrough mapped to ", (unsigned long)VirtualAddress);
+    return VirtualAddress;
+}
+
+/* Maps the five pieces of the passthrough the probe needs, once, and hands out the kernel
+ * addresses. The register page traps on every access and is mapped uncached; everything
+ * else is RAM on QEMU's side. */
+CODE_SEG("PAGE")
+static BOOLEAN
+BochsMapPassthrough(
+    _Inout_ PBOCHS_DEVICE_EXTENSION DeviceExtension,
+    _Out_ QEMUMP_PASSTHROUGH_MAPPING *Mapping,
+    _Out_ PSTATUS_BLOCK StatusBlock)
+{
+    QEMUMP_PASSTHROUGH_MAPPING *Kept = &DeviceExtension->PassthroughMapping;
+
+    if (Kept->TriggerPage == NULL)
+        Kept->TriggerPage = BochsMapPassthroughPiece(MESAPT_MM_BASE, 1, PASSTHROUGH_MEMORY_NON_CACHED);
+    if (Kept->FifoHeadPage == NULL)
+        Kept->FifoHeadPage = BochsMapPassthroughPiece(PTPROBE_FIFO_HEAD_PHYSICAL, 1, PASSTHROUGH_MEMORY_CACHED);
+    if (Kept->DataHeadPage == NULL)
+        Kept->DataHeadPage = BochsMapPassthroughPiece(PTPROBE_DATA_HEAD_PHYSICAL, 1, PASSTHROUGH_MEMORY_CACHED);
+    if (Kept->FifoTailPages == NULL)
+        Kept->FifoTailPages = BochsMapPassthroughPiece(PTPROBE_FIFO_TAIL_PHYSICAL, PTPROBE_FIFO_TAIL_PAGE_COUNT, PASSTHROUGH_MEMORY_CACHED);
+    if (Kept->FrameTransferTailPage == NULL)
+        Kept->FrameTransferTailPage = BochsMapPassthroughPiece(PTPROBE_FRAME_TRANSFER_TAIL_PHYSICAL, 1, PASSTHROUGH_MEMORY_CACHED);
+
+    VideoPortMoveMemory(Mapping, Kept, sizeof(*Mapping));
+
+    if (Kept->TriggerPage == NULL || Kept->FifoHeadPage == NULL || Kept->DataHeadPage == NULL ||
+        Kept->FifoTailPages == NULL || Kept->FrameTransferTailPage == NULL)
+    {
+        StatusBlock->Status = ERROR_NOT_ENOUGH_MEMORY;
+        return FALSE;
+    }
+
+    StatusBlock->Information = sizeof(*Mapping);
+    StatusBlock->Status = NO_ERROR;
+    return TRUE;
+}
+#endif /* QEMU_PASSTHROUGH_PROBE */
+
 CODE_SEG("PAGE")
 BOOLEAN NTAPI
 BochsStartIO(
@@ -736,6 +805,20 @@ BochsStartIO(
                                       (PULONG)RequestPacket->OutputBuffer,
                                       RequestPacket->StatusBlock);
         }
+
+#ifdef QEMU_PASSTHROUGH_PROBE
+        case IOCTL_QEMUMP_MAP_PASSTHROUGH:
+        {
+            if (RequestPacket->OutputBufferLength < sizeof(QEMUMP_PASSTHROUGH_MAPPING))
+            {
+                RequestPacket->StatusBlock->Status = ERROR_INSUFFICIENT_BUFFER;
+                return FALSE;
+            }
+            return BochsMapPassthrough(DeviceExtension,
+                                       (QEMUMP_PASSTHROUGH_MAPPING *)RequestPacket->OutputBuffer,
+                                       RequestPacket->StatusBlock);
+        }
+#endif
 
         default:
         {

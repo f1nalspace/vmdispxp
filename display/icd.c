@@ -10,6 +10,9 @@
  */
 
 #include "framebuf.h"
+#ifdef QEMU_PASSTHROUGH_PROBE
+#include "ptprobe.h"
+#endif
 
 /* opengl32.dll asks the display driver twice. First ExtEscape(hdc, QUERYESCSUPPORT, OPENGL_GETINFO)
  * to learn whether we answer at all, then ExtEscape(hdc, OPENGL_GETINFO) for the structure below.
@@ -63,6 +66,16 @@ DrvEscape(
 {
    UNREFERENCED_PARAMETER(pso);
 
+#ifdef QEMU_PASSTHROUGH_PROBE
+   /* Ahead of the trace line below: the stress run sends this escape thousands of times. */
+   if (iEsc == QEMUDISP_ESCAPE_PASSTHROUGH_PROBE)
+   {
+      PPDEV ppdev = IntScreenDeviceForSurface(pso);
+
+      return IntPassthroughProbeEscape(ppdev, cjIn, pvIn, cjOut, pvOut);
+   }
+#endif
+
    DbgPortLineHex("qemudisp: DrvEscape ", iEsc);
 
    switch (iEsc)
@@ -81,6 +94,10 @@ DrvEscape(
             DbgPortLine("qemudisp: OPENGL_GETINFO is supported");
             return TRUE;
          }
+#ifdef QEMU_PASSTHROUGH_PROBE
+         if (QueriedEscape == QEMUDISP_ESCAPE_PASSTHROUGH_PROBE)
+            return TRUE;
+#endif
 
          return FALSE;
       }

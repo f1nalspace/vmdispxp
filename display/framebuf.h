@@ -123,6 +123,22 @@ VOID
 IntFlushWholeScreen(
    PPDEV ppdev);
 
+#ifdef QEMU_PASSTHROUGH_PROBE
+/* qemu-3dfx: Plan C spike, display/ptprobe.c */
+
+PPDEV
+IntScreenDeviceForSurface(
+   SURFOBJ *pso);
+
+ULONG
+IntPassthroughProbeEscape(
+   PPDEV ppdev,
+   ULONG cjIn,
+   PVOID pvIn,
+   ULONG cjOut,
+   PVOID pvOut);
+#endif
+
 BOOL APIENTRY
 DrvBitBlt(
    SURFOBJ *psoTrg,

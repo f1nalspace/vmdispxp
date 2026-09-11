@@ -92,6 +92,15 @@ ScreenDeviceForSurface(SURFOBJ *pso)
    return NULL;
 }
 
+#ifdef QEMU_PASSTHROUGH_PROBE
+/* The probe escape needs the PDEV for the miniport handle, and DrvEscape only gets a SURFOBJ. */
+PPDEV
+IntScreenDeviceForSurface(SURFOBJ *pso)
+{
+   return ScreenDeviceForSurface(pso);
+}
+#endif
+
 /*
  * IntFlushRectangle
  *

@@ -15,6 +15,9 @@
 #include <devioctl.h>
 #include <section_attribs.h>
 #include "dbgport.h"
+#ifdef QEMU_PASSTHROUGH_PROBE
+#include "ptprobe.h"
+#endif
 
 #define VBE_EDID_SIZE                        0x80
 
@@ -75,6 +78,11 @@ typedef struct
     ULONG MaxXResolution;
     ULONG MaxYResolution;
     ULONG VramSize64K;
+
+#ifdef QEMU_PASSTHROUGH_PROBE
+    /* qemu-3dfx: the passthrough pages, mapped once on first request and kept. */
+    QEMUMP_PASSTHROUGH_MAPPING PassthroughMapping;
+#endif
 } BOCHS_DEVICE_EXTENSION, *PBOCHS_DEVICE_EXTENSION;
 
 #endif //BOCHS_H

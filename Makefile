@@ -30,7 +30,18 @@ DISPLAY_NAME  ?= qemudisp
 # This deliberately differs from the wrappers, which target SSE3.
 ARCH_FLAGS = -march=i686 -mno-sse -mno-mmx -mno-3dnow -mfpmath=387
 
-COMMON_CFLAGS = -Wall -O2 $(ARCH_FLAGS) -ffreestanding -fno-stack-protector -fno-asynchronous-unwind-tables -fno-ident -mno-stack-arg-probe -D_X86_ -DWIN32 -Icompat -Icommon $(DEBUGCON_FLAGS) $(PIXELFORMAT_FLAGS) -isystem $(DDK_INCLUDE)
+# make PASSTHROUGH_PROBE=1 builds the Plan C spike: the miniport maps the qemu-3dfx
+# passthrough pages, and a private escape drives the protocol from kernel mode. The layout
+# is read from the fork's own header, so it needs to know where the fork is.
+# See docs/LOG.md [467] in the project repository.
+PASSTHROUGH_PROBE ?= 0
+QEMU3DFX_MESA_INCLUDE ?= ../qemu-3dfx/qemu-1/hw/mesa
+ifeq ($(PASSTHROUGH_PROBE),1)
+PASSTHROUGH_PROBE_FLAGS = -DQEMU_PASSTHROUGH_PROBE -I$(QEMU3DFX_MESA_INCLUDE)
+PASSTHROUGH_PROBE_SRC   = display/ptprobe.c
+endif
+
+COMMON_CFLAGS = -Wall -O2 $(ARCH_FLAGS) -ffreestanding -fno-stack-protector -fno-asynchronous-unwind-tables -fno-ident -mno-stack-arg-probe -D_X86_ -DWIN32 -Icompat -Icommon $(DEBUGCON_FLAGS) $(PIXELFORMAT_FLAGS) $(PASSTHROUGH_PROBE_FLAGS) -isystem $(DDK_INCLUDE)
 
 # Subsystem 1 is "native"; the version stamp keeps XP happy.
 COMMON_LDFLAGS = -nostdlib -shared -Wl,--subsystem,native -Wl,--major-subsystem-version,5 -Wl,--minor-subsystem-version,1 -Wl,--image-base,0x10000
@@ -44,7 +55,7 @@ PIXELFORMAT_FLAGS = -DQEMUDISP_OWN_PIXEL_FORMATS
 PIXELFORMAT_SRC   = display/pixelformat.c
 endif
 
-DISPLAY_SRC  = display/enable.c display/accel.c display/icd.c $(PIXELFORMAT_SRC) common/kmem.c display/palette.c display/pointer.c display/screen.c display/surface.c
+DISPLAY_SRC  = display/enable.c display/accel.c display/icd.c $(PIXELFORMAT_SRC) $(PASSTHROUGH_PROBE_SRC) common/kmem.c display/palette.c display/pointer.c display/screen.c display/surface.c
 
 MINIPORT_OBJ = $(MINIPORT_SRC:%.c=$(BUILD)/%.o)
 DISPLAY_OBJ  = $(DISPLAY_SRC:%.c=$(BUILD)/%.o)
