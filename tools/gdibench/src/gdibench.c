@@ -220,7 +220,7 @@ static TestResult RunSolidFillTest(BenchContext *context)
 
    DeleteObject(brushes[0]);
    DeleteObject(brushes[1]);
-   return MakeResult("Vollflaechig fuellen (PatBlt)", iterationCount, elapsed, context->screenBytes);
+   return MakeResult("Fill the whole area (PatBlt)", iterationCount, elapsed, context->screenBytes);
 }
 
 static TestResult RunMemoryToScreenTest(BenchContext *context)
@@ -240,7 +240,7 @@ static TestResult RunMemoryToScreenTest(BenchContext *context)
          break;
       }
    }
-   return MakeResult("Speicher -> Bildschirm (BitBlt)", iterationCount, elapsed, context->screenBytes);
+   return MakeResult("Memory -> screen (BitBlt)", iterationCount, elapsed, context->screenBytes);
 }
 
 static TestResult RunScreenToMemoryTest(BenchContext *context)
@@ -260,7 +260,7 @@ static TestResult RunScreenToMemoryTest(BenchContext *context)
          break;
       }
    }
-   return MakeResult("Bildschirm -> Speicher (Lesen!)", iterationCount, elapsed, context->screenBytes);
+   return MakeResult("Screen -> memory (a read!)", iterationCount, elapsed, context->screenBytes);
 }
 
 static TestResult RunScreenToScreenScrollTest(BenchContext *context)
@@ -282,7 +282,7 @@ static TestResult RunScreenToScreenScrollTest(BenchContext *context)
          break;
       }
    }
-   return MakeResult("Bildschirm -> Bildschirm (Rollen)", iterationCount, elapsed, scrolledBytes);
+   return MakeResult("Screen -> screen (scrolling)", iterationCount, elapsed, scrolledBytes);
 }
 
 /* Dragging a window is a screen-to-screen copy of the window rectangle plus a repaint of
@@ -312,12 +312,12 @@ static TestResult RunWindowDragTest(BenchContext *context)
          break;
       }
    }
-   return MakeResult("Fenster schieben (400x300)", iterationCount, elapsed, context->draggedWindowBytes);
+   return MakeResult("Drag a window (400x300)", iterationCount, elapsed, context->draggedWindowBytes);
 }
 
 static TestResult RunTextOutTest(BenchContext *context)
 {
-   static const char *sampleText = "Der schnelle braune Fuchs springt ueber den faulen Hund. 0123456789";
+   static const char *sampleText = "The quick brown fox jumps over the lazy dog. 0123456789";
    int sampleLength = lstrlenA(sampleText);
    int lineHeight = 16;
    int lineCount = context->screenHeight / lineHeight;
@@ -340,7 +340,7 @@ static TestResult RunTextOutTest(BenchContext *context)
          break;
       }
    }
-   return MakeResult("Textzeile ausgeben (TextOut)", iterationCount, elapsed, 0.0);
+   return MakeResult("Draw a line of text (TextOut)", iterationCount, elapsed, 0.0);
 }
 
 /* The login fade the user named: a half transparent full screen bitmap over the desktop.
@@ -386,7 +386,7 @@ static int RunAlphaBlendTest(BenchContext *context, TestResult *resultOut)
    }
 
    FreeLibrary(blendModule);
-   *resultOut = MakeResult("Ueberblenden (AlphaBlend)", iterationCount, elapsed, context->screenBytes);
+   *resultOut = MakeResult("Alpha blending (AlphaBlend)", iterationCount, elapsed, context->screenBytes);
    return 1;
 }
 
@@ -398,7 +398,7 @@ static void ReportClipBox(FILE *outputFile, const BenchContext *context)
    RECT clipBox;
    int clipResult = GetClipBox(context->screenDC, &clipBox);
 
-   sprintf(line, "Zeichenbereich  %ld,%ld - %ld,%ld  (GetClipBox = %d)",
+   sprintf(line, "Clip box        %ld,%ld - %ld,%ld  (GetClipBox = %d)",
            clipBox.left, clipBox.top, clipBox.right, clipBox.bottom, clipResult);
    ReportLine(outputFile, line);
 }
@@ -440,9 +440,9 @@ static void ReportReadBackCheck(FILE *outputFile, BenchContext *context, const v
       }
    }
 
-   sprintf(line, "Gegenprobe      %ld von %ld Stichproben weichen ab%s",
+   sprintf(line, "Counter-check   %ld of %ld samples differ%s",
            mismatchCount, sampleCount,
-           (mismatchCount == 0) ? "  -- es wurde wirklich gezeichnet" : "  -- ACHTUNG");
+           (mismatchCount == 0) ? "  -- something really was drawn" : "  -- CAUTION");
    ReportLine(outputFile, line);
 
    SelectObject(verifyDC, previousBitmap);
@@ -455,14 +455,14 @@ static void ReportDisplayMode(FILE *outputFile, const BenchContext *context)
    char line[256];
    DEVMODEA displayMode;
 
-   sprintf(line, "Bildschirm  %d x %d, %d Bit", context->screenWidth, context->screenHeight, context->bitsPerPixel);
+   sprintf(line, "Screen      %d x %d, %d bit", context->screenWidth, context->screenHeight, context->bitsPerPixel);
    ReportLine(outputFile, line);
 
    ZeroMemory(&displayMode, sizeof(displayMode));
    displayMode.dmSize = sizeof(displayMode);
    if (EnumDisplaySettingsA(NULL, ENUM_CURRENT_SETTINGS, &displayMode))
    {
-      sprintf(line, "Modus       %lu x %lu x %lu bei %lu Hz",
+      sprintf(line, "Mode        %lu x %lu x %lu at %lu Hz",
               (unsigned long)displayMode.dmPelsWidth, (unsigned long)displayMode.dmPelsHeight,
               (unsigned long)displayMode.dmBitsPerPel, (unsigned long)displayMode.dmDisplayFrequency);
       ReportLine(outputFile, line);
@@ -499,7 +499,7 @@ int main(int argc, char **argv)
    window = CreateFullScreenWindow(context.screenWidth, context.screenHeight);
    if (window == NULL)
    {
-      ReportLine(outputFile, "FEHLER: Fenster liess sich nicht anlegen.");
+      ReportLine(outputFile, "ERROR: the window could not be created.");
       if (outputFile != NULL)
       {
          fclose(outputFile);
@@ -519,12 +519,12 @@ int main(int argc, char **argv)
    context.memoryDC = CreateCompatibleDC(context.screenDC);
    previousBitmap = SelectObject(context.memoryDC, sourceBitmap);
 
-   ReportLine(outputFile, "gdibench -- 2D-Durchsatz des Anzeigetreibers");
+   ReportLine(outputFile, "gdibench -- 2D throughput of the display driver");
    ReportDisplayMode(outputFile, &context);
    ReportClipBox(outputFile, &context);
    ReportReadBackCheck(outputFile, &context, sourceBits);
    ReportLine(outputFile, "");
-   ReportLine(outputFile, "  Test                                 Aufrufe        Dauer      Durchsatz");
+   ReportLine(outputFile, "  Test                                   Calls     Duration     Throughput");
 
    {
       TestResult result = RunSolidFillTest(&context);
@@ -557,7 +557,7 @@ int main(int argc, char **argv)
    }
    else
    {
-      ReportLine(outputFile, "  Ueberblenden (AlphaBlend)          nicht verfuegbar");
+      ReportLine(outputFile, "  Alpha blending (AlphaBlend)        not available");
    }
 
    SelectObject(context.memoryDC, previousBitmap);
@@ -568,7 +568,7 @@ int main(int argc, char **argv)
    PumpPendingMessages();
 
    ReportLine(outputFile, "");
-   ReportLine(outputFile, "fertig.");
+   ReportLine(outputFile, "done.");
    if (outputFile != NULL)
    {
       fclose(outputFile);

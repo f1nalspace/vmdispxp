@@ -30,14 +30,14 @@ static const char *ChangeDisplaySettingsResultText(LONG result)
 {
    switch (result)
    {
-      case DISP_CHANGE_SUCCESSFUL: return "erfolgreich";
-      case DISP_CHANGE_RESTART:    return "Neustart noetig";
-      case DISP_CHANGE_BADFLAGS:   return "ungueltige Schalter";
-      case DISP_CHANGE_BADPARAM:   return "ungueltiger Parameter";
-      case DISP_CHANGE_FAILED:     return "vom Treiber abgelehnt";
-      case DISP_CHANGE_BADMODE:    return "Modus wird nicht angeboten";
-      case DISP_CHANGE_NOTUPDATED: return "Registrierung nicht geschrieben";
-      default:                     return "unbekannt";
+      case DISP_CHANGE_SUCCESSFUL: return "successful";
+      case DISP_CHANGE_RESTART:    return "restart needed";
+      case DISP_CHANGE_BADFLAGS:   return "invalid flags";
+      case DISP_CHANGE_BADPARAM:   return "invalid parameter";
+      case DISP_CHANGE_FAILED:     return "rejected by the driver";
+      case DISP_CHANGE_BADMODE:    return "mode is not offered";
+      case DISP_CHANGE_NOTUPDATED: return "registry not written";
+      default:                     return "unknown";
    }
 }
 
@@ -52,7 +52,7 @@ static void ListModes(void)
    displayMode.dmSize = sizeof(displayMode);
    if (EnumDisplaySettingsA(NULL, ENUM_CURRENT_SETTINGS, &displayMode))
    {
-      sprintf(line, "Aktuell     %lu x %lu x %lu bei %lu Hz",
+      sprintf(line, "Current     %lu x %lu x %lu at %lu Hz",
               (unsigned long)displayMode.dmPelsWidth, (unsigned long)displayMode.dmPelsHeight,
               (unsigned long)displayMode.dmBitsPerPel, (unsigned long)displayMode.dmDisplayFrequency);
       ReportLine(line);
@@ -71,13 +71,13 @@ static void ListModes(void)
       displayDevice.cb = sizeof(displayDevice);
       if (EnumDisplayDevicesA(NULL, 1, &displayDevice, 0))
       {
-         sprintf(line, "Zweiter     %s", displayDevice.DeviceString);
+         sprintf(line, "Secondary   %s", displayDevice.DeviceString);
          ReportLine(line);
       }
    }
 
    ReportLine("");
-   ReportLine("Angebotene Modi:");
+   ReportLine("Modes offered:");
    for (;;)
    {
       ZeroMemory(&displayMode, sizeof(displayMode));
@@ -86,14 +86,14 @@ static void ListModes(void)
       {
          break;
       }
-      sprintf(line, "  %4lu x %4lu  x %2lu Bit  %3lu Hz",
+      sprintf(line, "  %4lu x %4lu  x %2lu bit  %3lu Hz",
               (unsigned long)displayMode.dmPelsWidth, (unsigned long)displayMode.dmPelsHeight,
               (unsigned long)displayMode.dmBitsPerPel, (unsigned long)displayMode.dmDisplayFrequency);
       ReportLine(line);
       listedCount++;
       modeIndex++;
    }
-   sprintf(line, "%lu Modi insgesamt.", (unsigned long)listedCount);
+   sprintf(line, "%lu modes in total.", (unsigned long)listedCount);
    ReportLine(line);
 }
 
@@ -112,7 +112,7 @@ static int SwitchMode(int width, int height, int bitsPerPixel)
    displayMode.dmFields = DM_PELSWIDTH | DM_PELSHEIGHT | DM_BITSPERPEL;
 
    testResult = ChangeDisplaySettingsA(&displayMode, CDS_TEST);
-   sprintf(line, "Probe       %d x %d x %d  ->  %s (%ld)",
+   sprintf(line, "Test        %d x %d x %d  ->  %s (%ld)",
            width, height, bitsPerPixel, ChangeDisplaySettingsResultText(testResult), (long)testResult);
    ReportLine(line);
    if (testResult != DISP_CHANGE_SUCCESSFUL)
@@ -123,7 +123,7 @@ static int SwitchMode(int width, int height, int bitsPerPixel)
    /* CDS_UPDATEREGISTRY makes the mode survive the next start; without it the desktop
     * falls back as soon as anything re-reads the settings. */
    applyResult = ChangeDisplaySettingsA(&displayMode, CDS_UPDATEREGISTRY);
-   sprintf(line, "Umschalten  %d x %d x %d  ->  %s (%ld)",
+   sprintf(line, "Switch      %d x %d x %d  ->  %s (%ld)",
            width, height, bitsPerPixel, ChangeDisplaySettingsResultText(applyResult), (long)applyResult);
    ReportLine(line);
    return (applyResult == DISP_CHANGE_SUCCESSFUL) ? 0 : 1;
@@ -155,7 +155,7 @@ int main(int argc, char **argv)
    }
 
    reportFile = fopen(outputPath, "w");
-   ReportLine("modes -- Bildschirmmodi des Anzeigetreibers");
+   ReportLine("modes -- display modes of the display driver");
 
    if (width > 0 && height > 0)
    {

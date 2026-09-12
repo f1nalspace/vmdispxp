@@ -126,7 +126,7 @@ static void ReportDriverCapabilities(LPDIRECTDRAW directDraw)
    result = IDirectDraw_GetCaps(directDraw, &hardwareCaps, &emulationCaps);
    if (FAILED(result))
    {
-      sprintf(line, "GetCaps gescheitert: 0x%08lx", (unsigned long)result);
+      sprintf(line, "GetCaps failed: 0x%08lx", (unsigned long)result);
       ReportLine(line);
       return;
    }
@@ -137,17 +137,17 @@ static void ReportDriverCapabilities(LPDIRECTDRAW directDraw)
     * DDCAPS_NOHARDWARE is itself a bit, and the guess comes out backwards. */
    if (hardwareCaps.dwCaps & DDCAPS_NOHARDWARE)
    {
-      ReportLine("HAL             keiner (DDCAPS_NOHARDWARE) -- alles ueber die Emulation");
+      ReportLine("HAL             none (DDCAPS_NOHARDWARE) -- everything through emulation");
    }
    else if (hardwareCaps.dwCaps & DDCAPS_BLT)
    {
-      ReportLine("HAL             vorhanden, mit Blitter");
+      ReportLine("HAL             present, with a blitter");
    }
    else
    {
-      ReportLine("HAL             gemeldet, aber ohne Blitter");
+      ReportLine("HAL             reported, but without a blitter");
    }
-   sprintf(line, "Bildspeicher    %lu KB gesamt, %lu KB frei",
+   sprintf(line, "Video memory    %lu KB total, %lu KB free",
            (unsigned long)(hardwareCaps.dwVidMemTotal / 1024), (unsigned long)(hardwareCaps.dwVidMemFree / 1024));
    ReportLine(line);
    sprintf(line, "Blitter         dwCaps 0x%08lx, dwCaps2 0x%08lx, FXCaps 0x%08lx",
@@ -212,8 +212,8 @@ int main(int argc, char **argv)
    reportFile = fopen(outputPath, "w");
    TimeSourceInit(&time);
 
-   ReportLine("ddbench -- DirectDraw-2D ueber den Anzeigetreiber");
-   sprintf(line, "Angefordert     %d x %d x %d", requestedWidth, requestedHeight, requestedDepth);
+   ReportLine("ddbench -- DirectDraw 2D through the display driver");
+   sprintf(line, "Requested       %d x %d x %d", requestedWidth, requestedHeight, requestedDepth);
    ReportLine(line);
 
    window = CreateExclusiveWindow();
@@ -223,7 +223,7 @@ int main(int argc, char **argv)
    result = DirectDrawCreate(NULL, &directDraw, NULL);
    if (FAILED(result))
    {
-      sprintf(line, "FEHLER: DirectDrawCreate 0x%08lx", (unsigned long)result);
+      sprintf(line, "ERROR: DirectDrawCreate 0x%08lx", (unsigned long)result);
       ReportLine(line);
       return 1;
    }
@@ -233,7 +233,7 @@ int main(int argc, char **argv)
    result = IDirectDraw_SetCooperativeLevel(directDraw, window, DDSCL_EXCLUSIVE | DDSCL_FULLSCREEN);
    if (FAILED(result))
    {
-      sprintf(line, "FEHLER: SetCooperativeLevel 0x%08lx", (unsigned long)result);
+      sprintf(line, "ERROR: SetCooperativeLevel 0x%08lx", (unsigned long)result);
       ReportLine(line);
       return 1;
    }
@@ -243,13 +243,13 @@ int main(int argc, char **argv)
       result = IDirectDraw_SetDisplayMode(directDraw, requestedWidth, requestedHeight, requestedDepth);
       if (FAILED(result))
       {
-         sprintf(line, "FEHLER: SetDisplayMode %dx%dx%d 0x%08lx",
+         sprintf(line, "ERROR: SetDisplayMode %dx%dx%d 0x%08lx",
                  requestedWidth, requestedHeight, requestedDepth, (unsigned long)result);
          ReportLine(line);
          IDirectDraw_Release(directDraw);
          return 1;
       }
-      sprintf(line, "Moduswechsel    %.1f ms", (TimeSourceNow(&time) - modeChangeStart) * 1000.0);
+      sprintf(line, "Mode change     %.1f ms", (TimeSourceNow(&time) - modeChangeStart) * 1000.0);
       ReportLine(line);
    }
 
@@ -261,7 +261,7 @@ int main(int argc, char **argv)
    result = IDirectDraw_CreateSurface(directDraw, &surfaceDescription, &primarySurface, NULL);
    if (FAILED(result))
    {
-      sprintf(line, "Flipping-Kette nicht moeglich (0x%08lx), einzelne Primaerflaeche", (unsigned long)result);
+      sprintf(line, "No flipping chain possible (0x%08lx), single primary surface", (unsigned long)result);
       ReportLine(line);
       haveFlippingChain = 0;
       ZeroMemory(&surfaceDescription, sizeof(surfaceDescription));
@@ -271,7 +271,7 @@ int main(int argc, char **argv)
       result = IDirectDraw_CreateSurface(directDraw, &surfaceDescription, &primarySurface, NULL);
       if (FAILED(result))
       {
-         sprintf(line, "FEHLER: CreateSurface (primaer) 0x%08lx", (unsigned long)result);
+         sprintf(line, "ERROR: CreateSurface (primary) 0x%08lx", (unsigned long)result);
          ReportLine(line);
          IDirectDraw_Release(directDraw);
          return 1;
@@ -285,7 +285,7 @@ int main(int argc, char **argv)
       result = IDirectDrawSurface_GetAttachedSurface(primarySurface, &backBufferCaps, &backSurface);
       if (FAILED(result))
       {
-         sprintf(line, "FEHLER: GetAttachedSurface 0x%08lx", (unsigned long)result);
+         sprintf(line, "ERROR: GetAttachedSurface 0x%08lx", (unsigned long)result);
          ReportLine(line);
          haveFlippingChain = 0;
       }
@@ -299,16 +299,16 @@ int main(int argc, char **argv)
       surfaceDescription.dwSize = sizeof(surfaceDescription);
       if (SUCCEEDED(IDirectDrawSurface_GetSurfaceDesc(drawSurface, &surfaceDescription)))
       {
-         const char *where = (surfaceDescription.ddsCaps.dwCaps & DDSCAPS_VIDEOMEMORY) ? "Bildspeicher" :
-                             (surfaceDescription.ddsCaps.dwCaps & DDSCAPS_SYSTEMMEMORY) ? "Systemspeicher" : "unbekannt";
-         sprintf(line, "Zielflaeche     %lu x %lu, Pitch %ld, in %s (dwCaps 0x%08lx)",
+         const char *where = (surfaceDescription.ddsCaps.dwCaps & DDSCAPS_VIDEOMEMORY) ? "video memory" :
+                             (surfaceDescription.ddsCaps.dwCaps & DDSCAPS_SYSTEMMEMORY) ? "system memory" : "unknown";
+         sprintf(line, "Target surface  %lu x %lu, pitch %ld, in %s (dwCaps 0x%08lx)",
                  (unsigned long)surfaceDescription.dwWidth, (unsigned long)surfaceDescription.dwHeight,
                  (long)surfaceDescription.lPitch, where, (unsigned long)surfaceDescription.ddsCaps.dwCaps);
          ReportLine(line);
       }
 
       ReportLine("");
-      ReportLine("  Test                                 Aufrufe        Dauer      Durchsatz");
+      ReportLine("  Test                                   Calls     Duration     Throughput");
 
       /* 1 -- lock, write every pixel, unlock. The software renderer's inner loop. */
       {
@@ -334,7 +334,7 @@ int main(int argc, char **argv)
                break;
             }
          }
-         ReportMeasurement("Sperren, fuellen, freigeben", iterationCount, elapsed, surfaceBytes);
+         ReportMeasurement("Lock, fill, unlock", iterationCount, elapsed, surfaceBytes);
       }
 
       /* 2 -- a solid colour fill through the blitter. */
@@ -357,7 +357,7 @@ int main(int argc, char **argv)
                break;
             }
          }
-         ReportMeasurement("Flaeche fuellen (Blt COLORFILL)", iterationCount, elapsed, surfaceBytes);
+         ReportMeasurement("Fill a surface (Blt COLORFILL)", iterationCount, elapsed, surfaceBytes);
       }
 
       /* 3 -- a sprite blit from an offscreen surface, the other half of a 2D game. */
@@ -392,11 +392,11 @@ int main(int argc, char **argv)
                break;
             }
          }
-         ReportMeasurement("Sprite blitten (128x128)", iterationCount, elapsed, spriteBytes);
+         ReportMeasurement("Blit a sprite (128x128)", iterationCount, elapsed, spriteBytes);
       }
       else
       {
-         sprintf(line, "  Sprite blitten                   CreateSurface 0x%08lx", (unsigned long)result);
+         sprintf(line, "  Blit a sprite                    CreateSurface 0x%08lx", (unsigned long)result);
          ReportLine(line);
       }
 
@@ -417,11 +417,11 @@ int main(int argc, char **argv)
                break;
             }
          }
-         ReportMeasurement("Umschalten (Flip)", iterationCount, elapsed, surfaceBytes);
+         ReportMeasurement("Switch buffers (Flip)", iterationCount, elapsed, surfaceBytes);
       }
       else
       {
-         ReportLine("  Umschalten (Flip)                  keine Flipping-Kette");
+         ReportLine("  Switch buffers (Flip)              no flipping chain");
       }
 
       /* 5 -- draw and flip together: what the frame rate of a 2D game actually is. */
@@ -452,7 +452,7 @@ int main(int argc, char **argv)
                break;
             }
          }
-         ReportMeasurement("Vollbild zeichnen und zeigen", iterationCount, elapsed, surfaceBytes);
+         ReportMeasurement("Draw a full frame and show it", iterationCount, elapsed, surfaceBytes);
       }
    }
 
@@ -476,7 +476,7 @@ int main(int argc, char **argv)
    PumpPendingMessages();
 
    ReportLine("");
-   ReportLine("fertig.");
+   ReportLine("done.");
    if (reportFile != NULL)
    {
       fclose(reportFile);
