@@ -32,20 +32,20 @@ typedef struct _OPENGL_ICD_INFO
    WCHAR RegistryKeyName[OPENGL_ICD_NAME_CHARS];
 } OPENGL_ICD_INFO;
 
-/* The same pair vmdisp9x/control.c:102 writes for QEMUFX, and what opengl32.dll checks
+/* The same pair vmdisp9x/control.c:102 writes for FVM3DX, and what opengl32.dll checks
  * against. The dump of a real NVIDIA driver at vmdisp9x/control.c:65 has its 0x01 at
  * offset *6* rather than 4, which would read as 0x00010000 here -- tried, changes
  * nothing, so the value that is proven on 9x stays. */
 #define OPENGL_ICD_VERSION        2
 #define OPENGL_ICD_DRIVER_VERSION 1
 
-/* Matches HKLM\Software\Microsoft\Windows\CurrentVersion\OpenGLdrivers\QEMUFX -> qmfxgl32.dll,
+/* Matches HKLM\Software\Microsoft\Windows\CurrentVersion\OpenGLdrivers\FVM3DX -> fvm3dx32.dll,
  * the same key name vmdisp9x announces on Windows 9x. */
-static const OPENGL_ICD_INFO QemuFxIcdInfo =
+static const OPENGL_ICD_INFO Fvm3dxIcdInfo =
 {
    OPENGL_ICD_VERSION,
    OPENGL_ICD_DRIVER_VERSION,
-   L"QEMUFX"
+   L"FVM3DX"
 };
 
 /*
@@ -93,7 +93,7 @@ DrvEscape(
             return FALSE;
          }
 
-         memcpy(pvOut, &QemuFxIcdInfo, sizeof(OPENGL_ICD_INFO));
+         memcpy(pvOut, &Fvm3dxIcdInfo, sizeof(OPENGL_ICD_INFO));
          DbgPortLineHex("qemudisp: handed out the ICD name, bytes ", sizeof(OPENGL_ICD_INFO));
          return TRUE;
       }

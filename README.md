@@ -1,6 +1,6 @@
 # vmdispxp — XPDM display driver for QEMU, with the qemu-3dfx OpenGL ICD
 
-An XPDM display driver pair for Windows 2000/XP guests on **QEMU's standard VGA** (`-device VGA`, `PCI\VEN_1234&DEV_1111`). It offers free resolutions at 16 and 32 bpp, accelerates 2D through a shadow buffer, and announces the qemu-3dfx OpenGL ICD `qmfxgl32.dll` to Windows.
+An XPDM display driver pair for Windows 2000/XP guests on **QEMU's standard VGA** (`-device VGA`, `PCI\VEN_1234&DEV_1111`). It offers free resolutions at 16 and 32 bpp, accelerates 2D through a shadow buffer, and announces the qemu-3dfx OpenGL ICD `fvm3dx32.dll` to Windows.
 
 This is the NT counterpart to `vmdisp9x`, which does the same job for Windows 9x.
 
@@ -47,15 +47,15 @@ Only the **i686 MinGW cross toolchain** is needed — no DDK, no Open Watcom. Th
 
 `opengl32.dll` asks the driver twice: `QUERYESCSUPPORT` for `OPENGL_GETINFO`, then `OPENGL_GETINFO` itself. What comes back is not the name of the library but the name of a registry subkey. **On NT that subkey carries four values**, where Windows 9x has a plain string value instead:
 
-    HKLM\Software\Microsoft\Windows NT\CurrentVersion\OpenGLDrivers\QEMUFX
-        DLL           REG_SZ     qmfxgl32.dll
+    HKLM\Software\Microsoft\Windows NT\CurrentVersion\OpenGLDrivers\FVM3DX
+        DLL           REG_SZ     fvm3dx32.dll
         Flags         REG_DWORD  3
         Version       REG_DWORD  2
         DriverVersion REG_DWORD  1
 
 **Both bits of `Flags` matter.** Without **bit 0**, Windows never asks the ICD for a pixel format, hands the application its own generic formats, and OpenGL ends up in software. Without **bit 1**, `__DrvSwapBuffers` calls `glFinish()` before every `SwapBuffers` — a full round trip across the device boundary, costing about a third of the frame rate.
 
-`Version` and `DriverVersion` must repeat what the escape returns, and `Version` must be 2. The INF sets all of it. To turn the ICD off for a counter-test, delete the `QEMUFX` subkey or set its `Flags` to 0.
+`Version` and `DriverVersion` must repeat what the escape returns, and `Version` must be 2. The INF sets all of it. To turn the ICD off for a counter-test, delete the `FVM3DX` subkey or set its `Flags` to 0.
 
 ## Status
 
@@ -85,7 +85,7 @@ The frame buffer can be read from outside, which is the decisive measurement whe
     display/         qemudisp.dll — XPDM display driver, shadow buffer, ICD escape
     common/          memcpy and memset, and the debug console
     compat/          DDK headers the MinGW toolchain does not ship
-    inf/qemufx.inf   installs both and registers the ICD
+    inf/fvm3dx.inf   installs both and registers the ICD
     tools/gdibench   GDI throughput, measured inside the guest
     tools/ddbench    the same for DirectDraw
     tools/modes      list the offered display modes and set one

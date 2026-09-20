@@ -1,8 +1,8 @@
 ; XPDM display driver for QEMU's standard VGA (PCI 1234:1111), announcing the
-; qemu-3dfx OpenGL ICD.
+; fvm3dx OpenGL ICD.
 ;
 ; The miniport talks the Bochs VBE registers 0x1CE/0x1CF, the display driver adds
-; DrvEscape/OPENGL_GETINFO so that opengl32.dll finds qmfxgl32.dll.
+; DrvEscape/OPENGL_GETINFO so that opengl32.dll finds fvm3dx32.dll.
 
 [Version]
 Signature   = "$Windows NT$"
@@ -13,39 +13,39 @@ DriverVer   = 09/02/2026,1.0.0.0
 
 [DestinationDirs]
 DefaultDestDir  = 11
-QemuFx.Miniport = 12
-QemuFx.Display  = 11
+Fvm3dx.Miniport = 12
+Fvm3dx.Display  = 11
 
 [Manufacturer]
-%Provider% = QemuFx
+%Provider% = Fvm3dx
 
-[QemuFx]
-%QemuFx.DeviceDesc% = QemuFx_Install, PCI\VEN_1234&DEV_1111
+[Fvm3dx]
+%Fvm3dx.DeviceDesc% = Fvm3dx_Install, PCI\VEN_1234&DEV_1111
 
-[QemuFx_Install]
-CopyFiles = QemuFx.Miniport, QemuFx.Display
-AddReg    = QemuFx_OpenGL_AddReg
+[Fvm3dx_Install]
+CopyFiles = Fvm3dx.Miniport, Fvm3dx.Display
+AddReg    = Fvm3dx_OpenGL_AddReg
 
-[QemuFx.Miniport]
+[Fvm3dx.Miniport]
 qemump.sys
 
-[QemuFx.Display]
+[Fvm3dx.Display]
 qemudisp.dll
 
-[QemuFx_Install.Services]
-AddService = qemump, 0x00000002, QemuFx_Service
+[Fvm3dx_Install.Services]
+AddService = qemump, 0x00000002, Fvm3dx_Service
 
-[QemuFx_Service]
+[Fvm3dx_Service]
 ServiceType    = 1              ; SERVICE_KERNEL_DRIVER
 StartType      = 1              ; SERVICE_SYSTEM_START
 ErrorControl   = 0              ; SERVICE_ERROR_IGNORE
 LoadOrderGroup = Video
 ServiceBinary  = %12%\qemump.sys
 
-[QemuFx_Install.SoftwareSettings]
-AddReg = QemuFx_SoftwareDeviceSettings
+[Fvm3dx_Install.SoftwareSettings]
+AddReg = Fvm3dx_SoftwareDeviceSettings
 
-[QemuFx_SoftwareDeviceSettings]
+[Fvm3dx_SoftwareDeviceSettings]
 HKR,, InstalledDisplayDrivers, %REG_MULTI_SZ%, qemudisp
 HKR,, VgaCompatible,           %REG_DWORD%,    0
 HKR,, Acceleration.Level,      %REG_DWORD%,    0
@@ -64,12 +64,12 @@ HKR,, Acceleration.Level,      %REG_DWORD%,    0
 ; Version and DriverVersion have to repeat what the OPENGL_GETINFO escape hands out
 ; (display/icd.c) -- opengl32.dll compares the two and drops the driver when they differ.
 ; The 9x style value stays next to it; Windows 9x reads only that one and ignores the rest.
-[QemuFx_OpenGL_AddReg]
-HKLM,"Software\Microsoft\Windows\CurrentVersion\OpenGLdrivers",          "QEMUFX",        0x00000000, "qmfxgl32.dll"
-HKLM,"Software\Microsoft\Windows NT\CurrentVersion\OpenGLdrivers\QEMUFX","DLL",           0x00000000, "qmfxgl32.dll"
-HKLM,"Software\Microsoft\Windows NT\CurrentVersion\OpenGLdrivers\QEMUFX","Flags",         0x00010001, 3
-HKLM,"Software\Microsoft\Windows NT\CurrentVersion\OpenGLdrivers\QEMUFX","Version",       0x00010001, 2
-HKLM,"Software\Microsoft\Windows NT\CurrentVersion\OpenGLdrivers\QEMUFX","DriverVersion", 0x00010001, 1
+[Fvm3dx_OpenGL_AddReg]
+HKLM,"Software\Microsoft\Windows\CurrentVersion\OpenGLdrivers",          "FVM3DX",        0x00000000, "fvm3dx32.dll"
+HKLM,"Software\Microsoft\Windows NT\CurrentVersion\OpenGLdrivers\FVM3DX","DLL",           0x00000000, "fvm3dx32.dll"
+HKLM,"Software\Microsoft\Windows NT\CurrentVersion\OpenGLdrivers\FVM3DX","Flags",         0x00010001, 3
+HKLM,"Software\Microsoft\Windows NT\CurrentVersion\OpenGLdrivers\FVM3DX","Version",       0x00010001, 2
+HKLM,"Software\Microsoft\Windows NT\CurrentVersion\OpenGLdrivers\FVM3DX","DriverVersion", 0x00010001, 1
 
 [SourceDisksNames]
 1 = %DiskName%,,,""
@@ -83,6 +83,6 @@ REG_SZ       = 0x00000000
 REG_MULTI_SZ = 0x00010000
 REG_DWORD    = 0x00010001
 
-Provider           = "qemu-3dfx-build"
-DiskName           = "QEMU 3dfx display driver disk"
-QemuFx.DeviceDesc  = "QEMU Standard VGA (qemu-3dfx ICD)"
+Provider           = "fvm3dx"
+DiskName           = "fvm3dx display driver disk"
+Fvm3dx.DeviceDesc  = "QEMU Standard VGA (fvm3dx ICD)"
