@@ -56,6 +56,11 @@ typedef struct _PDEV
    SURFOBJ *psoShadow;
    PBYTE ShadowBits;
 
+   /* The area GDI announced through DrvSynchronizeSurface before drawing on the shadow by itself,
+    * not copied over yet. Flushed on the next flush or timer event, display/accel.c. */
+   RECTL PendingDirtyRectangle;
+   BOOL HasPendingDirtyRectangle;
+
 #ifdef EXPERIMENTAL_MOUSE_CURSOR_SUPPORT
    VIDEO_POINTER_ATTRIBUTES PointerAttributes;
    XLATEOBJ *PointerXlateObject;
@@ -103,7 +108,7 @@ DrvSwapBuffers(
                                HOOK_PLGBLT | HOOK_TEXTOUT | HOOK_PAINT | \
                                HOOK_STROKEPATH | HOOK_FILLPATH | HOOK_STROKEANDFILLPATH | \
                                HOOK_LINETO | HOOK_COPYBITS | HOOK_TRANSPARENTBLT | \
-                               HOOK_ALPHABLEND | HOOK_GRADIENTFILL)
+                               HOOK_ALPHABLEND | HOOK_GRADIENTFILL | HOOK_SYNCHRONIZE)
 
 VOID
 IntRegisterScreenSurface(
@@ -122,6 +127,12 @@ IntFlushRectangle(
 VOID
 IntFlushWholeScreen(
    PPDEV ppdev);
+
+VOID APIENTRY
+DrvSynchronizeSurface(
+   SURFOBJ *pso,
+   RECTL *prcl,
+   FLONG fl);
 
 BOOL APIENTRY
 DrvBitBlt(

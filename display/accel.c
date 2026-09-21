@@ -27,6 +27,90 @@
 
 #include "framebuf.h"
 
+#ifdef QEMU_DEBUGCON
+/* Diagnostics for smoothed text and GDI's own drawing, docs/LOG.md [1077], [1080]. GDI announces nearly every drawing,
+ * so the announcements are counted, and one summary line goes out per SUMMARY_TIMER_INTERVAL timer events. Both kinds
+ * of line are capped on their own, so a long session cannot fill the disk and neither kind can starve the other. */
+#define TEXT_LINE_LIMIT          1000
+#define SUMMARY_LINE_LIMIT       2000
+#define SUMMARY_TIMER_INTERVAL   50
+
+static ULONG TextLineCount;
+static ULONG SummaryLineCount;
+static ULONG AnnounceCount;
+static ULONG AnnounceWholeSurfaceCount;
+static ULONG TimerEventCount;
+static ULONG FlushEventCount;
+static ULONG PendingCopyCount;
+static ULONG PendingWholeScreenCopyCount;
+static ULONG HookedFlushCount;
+static LONGLONG SummaryStartCounter;
+static BOOL SummaryStarted;
+
+static BOOL TextLineAllowed(VOID)
+{
+   if (TextLineCount >= TEXT_LINE_LIMIT)
+   {
+      return FALSE;
+   }
+   TextLineCount++;
+   return TRUE;
+}
+
+static VOID DbgPortRectangle(const RECTL *pRectangle)
+{
+   DbgPortHex32((unsigned long)pRectangle->left);
+   DbgPortString(",");
+   DbgPortHex32((unsigned long)pRectangle->top);
+   DbgPortString(" - ");
+   DbgPortHex32((unsigned long)pRectangle->right);
+   DbgPortString(",");
+   DbgPortHex32((unsigned long)pRectangle->bottom);
+}
+
+static VOID DbgPortCount(const char *label, ULONG value)
+{
+   DbgPortString(label);
+   DbgPortHex32(value);
+}
+
+/* Called on every timer event. The elapsed time is in performance counter ticks; the frequency goes out once. */
+static VOID DiagnosticSummaryTick(VOID)
+{
+   LONGLONG nowCounter;
+   LONGLONG elapsedTicks;
+
+   EngQueryPerformanceCounter(&nowCounter);
+   if (!SummaryStarted)
+   {
+      LONGLONG counterFrequency;
+
+      EngQueryPerformanceFrequency(&counterFrequency);
+      DbgPortLineHex("qemudisp: performance counter frequency (low 32 bits) ", (unsigned long)counterFrequency);
+      SummaryStartCounter = nowCounter;
+      SummaryStarted = TRUE;
+      return;
+   }
+   if (TimerEventCount % SUMMARY_TIMER_INTERVAL != 0 || SummaryLineCount >= SUMMARY_LINE_LIMIT)
+   {
+      return;
+   }
+   SummaryLineCount++;
+   elapsedTicks = nowCounter - SummaryStartCounter;
+   SummaryStartCounter = nowCounter;
+
+   DbgPortCount("qemudisp: summary ticks=", (ULONG)elapsedTicks);
+   DbgPortCount(" timer=", TimerEventCount);
+   DbgPortCount(" flushevents=", FlushEventCount);
+   DbgPortCount(" announces=", AnnounceCount);
+   DbgPortCount(" whole=", AnnounceWholeSurfaceCount);
+   DbgPortCount(" pendingcopies=", PendingCopyCount);
+   DbgPortCount(" wholescreencopies=", PendingWholeScreenCopyCount);
+   DbgPortCount(" hookedflushes=", HookedFlushCount);
+   DbgPortPutChar('\n');
+}
+#endif
+
 /* Which PDEV a SURFOBJ belongs to. SURFOBJ.dhpdev is documented for device-managed
  * surfaces, and ours is a GDI-managed bitmap, so it is looked up here instead of
  * trusted. One entry per display device; XP with two adapters uses two. */
@@ -112,6 +196,9 @@ IntFlushRectangle(PPDEV ppdev, const RECTL *pDirtyRectangle)
    {
       return;
    }
+#ifdef QEMU_DEBUGCON
+   HookedFlushCount++;
+#endif
 
    clipped = *pDirtyRectangle;
    if (clipped.left < 0)
@@ -230,6 +317,89 @@ UnionRectangle(RECTL *pTarget, const RECTL *pOther)
    {
       pTarget->bottom = pOther->bottom;
    }
+}
+
+
+/*
+ * DrvSynchronizeSurface
+ *
+ * GDI can draw into the shadow by itself, past every hook: ClearType text still went missing with GCAPS_GRAY16
+ * (docs/LOG.md [1076]). With HOOK_SYNCHRONIZE, GDI calls here before it touches the surface, with the rectangle it is
+ * about to draw on. The drawing has not happened yet, so the rectangle is only noted, and copied over on the next flush
+ * or timer event (GCAPS2_SYNCFLUSH, GCAPS2_SYNCTIMER).
+ */
+
+VOID APIENTRY
+DrvSynchronizeSurface(SURFOBJ *pso, RECTL *prcl, FLONG fl)
+{
+   PPDEV ppdev = ScreenDeviceForSurface(pso);
+
+   if (ppdev == NULL)
+   {
+      return;
+   }
+
+   if (fl & (DSS_FLUSH_EVENT | DSS_TIMER_EVENT))
+   {
+#ifdef QEMU_DEBUGCON
+      if (fl & DSS_TIMER_EVENT)
+      {
+         TimerEventCount++;
+      }
+      if (fl & DSS_FLUSH_EVENT)
+      {
+         FlushEventCount++;
+      }
+      if (ppdev->HasPendingDirtyRectangle)
+      {
+         BOOL wholeScreen = ppdev->PendingDirtyRectangle.left == 0 && ppdev->PendingDirtyRectangle.top == 0 &&
+                            ppdev->PendingDirtyRectangle.right == (LONG)ppdev->ScreenWidth && ppdev->PendingDirtyRectangle.bottom == (LONG)ppdev->ScreenHeight;
+         PendingCopyCount++;
+         if (wholeScreen)
+         {
+            PendingWholeScreenCopyCount++;
+         }
+      }
+      if (fl & DSS_TIMER_EVENT)
+      {
+         DiagnosticSummaryTick();
+      }
+#endif
+      if (ppdev->HasPendingDirtyRectangle)
+      {
+         ppdev->HasPendingDirtyRectangle = FALSE;
+         IntFlushRectangle(ppdev, &ppdev->PendingDirtyRectangle);
+      }
+      return;
+   }
+
+#ifdef QEMU_DEBUGCON
+   AnnounceCount++;
+   if (prcl == NULL)
+   {
+      AnnounceWholeSurfaceCount++;
+   }
+#endif
+
+   if (prcl != NULL)
+   {
+      if (ppdev->HasPendingDirtyRectangle)
+      {
+         UnionRectangle(&ppdev->PendingDirtyRectangle, prcl);
+      }
+      else
+      {
+         ppdev->PendingDirtyRectangle = *prcl;
+      }
+   }
+   else
+   {
+      ppdev->PendingDirtyRectangle.left = 0;
+      ppdev->PendingDirtyRectangle.top = 0;
+      ppdev->PendingDirtyRectangle.right = (LONG)ppdev->ScreenWidth;
+      ppdev->PendingDirtyRectangle.bottom = (LONG)ppdev->ScreenHeight;
+   }
+   ppdev->HasPendingDirtyRectangle = TRUE;
 }
 
 /*
@@ -397,6 +567,28 @@ DrvTextOut(
       {
          IntersectRectangle(&dirtyBounds, &pco->rclBounds);
       }
+#ifdef QEMU_DEBUGCON
+      if (pfo != NULL && (pfo->flFontType & (FO_GRAY16 | FO_CLEARTYPE_X)) && TextLineAllowed())
+      {
+         const unsigned long noClipObject = 0xFFFFFFFF;
+         unsigned long clipComplexity = (pco != NULL) ? pco->iDComplexity : noClipObject;
+
+         DbgPortString("qemudisp: textout font type=");
+         DbgPortHex32(pfo->flFontType);
+         DbgPortString(" background ");
+         DbgPortRectangle(&pstro->rclBkGround);
+         DbgPortString(" clip ");
+         DbgPortHex32(clipComplexity);
+         if (pco != NULL)
+         {
+            DbgPortString(" bounds ");
+            DbgPortRectangle(&pco->rclBounds);
+         }
+         DbgPortString(" copied ");
+         DbgPortRectangle(&dirtyBounds);
+         DbgPortPutChar('\n');
+      }
+#endif
       IntFlushRectangle(ppdev, &dirtyBounds);
    }
    return drawn;

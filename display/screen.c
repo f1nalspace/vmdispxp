@@ -303,7 +303,8 @@ IntInitScreenInfo(
    pGdiInfo->ulHTPatternSize = HT_PATSIZE_4x4_M;
    pGdiInfo->flHTFlags = HT_FLAG_ADDITIVE_PRIMS;
 
-   pDevInfo->flGraphicsCaps = 0;
+   /* Without GCAPS_GRAY16, GDI blends smoothed text into the shadow itself, past DrvTextOut, and it never reaches the frame buffer. */
+   pDevInfo->flGraphicsCaps = GCAPS_GRAY16;
    pDevInfo->lfDefaultFont = SystemFont;
    pDevInfo->lfAnsiVarFont = AnsiVariableFont;
    pDevInfo->lfAnsiFixFont = AnsiFixedFont;
@@ -311,7 +312,8 @@ IntInitScreenInfo(
    pDevInfo->cxDither = 0;
    pDevInfo->cyDither = 0;
    pDevInfo->hpalDefault = 0;
-   pDevInfo->flGraphicsCaps2 = 0;
+   /* The flush and timer events of DrvSynchronizeSurface copy over what GDI drew by itself, display/accel.c. */
+   pDevInfo->flGraphicsCaps2 = GCAPS2_SYNCFLUSH | GCAPS2_SYNCTIMER;
 
    if (ppdev->BitsPerPixel == 8)
    {

@@ -53,6 +53,8 @@ static DRVFN DrvFunctionTable[] =
    {INDEX_DrvTransparentBlt, (PFN)DrvTransparentBlt},
    {INDEX_DrvAlphaBlend, (PFN)DrvAlphaBlend},
    {INDEX_DrvGradientFill, (PFN)DrvGradientFill},
+   /* Not a drawing function: GDI announces here what it is about to draw on the shadow by itself. */
+   {INDEX_DrvSynchronizeSurface, (PFN)DrvSynchronizeSurface},
 #ifdef QEMUDISP_OWN_PIXEL_FORMATS
    /* Off, and measured: with these three in the table opengl32 stops asking for the ICD
     * altogether -- the OPENGL_GETINFO escape goes from 39 calls to none, and OpenGL then
