@@ -531,15 +531,27 @@ Fvm3dxPublishRegion(WNDOBJ *pwo, volatile Fvm3dxDisplayWindow *Entry)
    Entry->complete = Complete ? 1 : 0;
    Fvm3dxEndWrite(&Entry->sequence);
    DbgPortLineHex("qemudisp: fvm3dx window region, rectangles ", Count);
+   DbgPortLineHex("qemudisp: fvm3dx window region, client right ", (ULONG)pwo->rclClient.right);
+   DbgPortLineHex("qemudisp: fvm3dx window region, client bottom ", (ULONG)pwo->rclClient.bottom);
+   DbgPortLineHex("qemudisp: fvm3dx window region, first right ", (ULONG)Entry->rectangles[0].right);
+   DbgPortLineHex("qemudisp: fvm3dx window region, first bottom ", (ULONG)Entry->rectangles[0].bottom);
 }
+
+/* The WNDOBJ of every entry, kept so a window announced again after a mode change can get a new one. */
+static WNDOBJ *WindowObjects[FVM3DX_DISPLAY_WINDOW_COUNT];
 
 /* GDI's WNDOBJ callback. WOC_CHANGED comes without a window and only says that a batch of changes is complete. */
 static VOID APIENTRY
 Fvm3dxWindowChanged(WNDOBJ *pwo, FLONG fl)
 {
    volatile Fvm3dxDisplayPage *Page = DisplayPage;
-   if (pwo == NULL || Page == NULL)
+   if (pwo == NULL)
    {
+      return;
+   }
+   if (Page == NULL)
+   {
+      DbgPortLineHex("qemudisp: fvm3dx window callback without a page, flags ", fl);
       return;
    }
    ULONG EntryNumber = (ULONG)(ULONG_PTR)pwo->pvConsumer;
@@ -551,6 +563,7 @@ Fvm3dxWindowChanged(WNDOBJ *pwo, FLONG fl)
    DbgPortLineHex("qemudisp: fvm3dx window callback, flags ", fl);
    if ((fl & WOC_DELETE) != 0)
    {
+      WindowObjects[EntryNumber - 1] = NULL;
       Fvm3dxBeginWrite(&Entry->sequence);
       Entry->window = 0;
       Entry->rectangleCount = 0;
@@ -564,7 +577,33 @@ Fvm3dxWindowChanged(WNDOBJ *pwo, FLONG fl)
    }
 }
 
-/* ExtEscape(WNDOBJ_SETUP) of the fvm3dx ICD: a WNDOBJ for the window, so GDI reports every change of its visible part. */
+/* Deletes the WNDOBJ of a window announced before and frees its entry. */
+static VOID
+Fvm3dxForgetWindow(volatile Fvm3dxDisplayPage *Page, uint32_t Window)
+{
+   for (ULONG Index = 0; Index < FVM3DX_DISPLAY_WINDOW_COUNT; Index++)
+   {
+      volatile Fvm3dxDisplayWindow *Entry = &Page->windows[Index];
+      if (Entry->window != Window || WindowObjects[Index] == NULL)
+      {
+         continue;
+      }
+      WNDOBJ *pwo = WindowObjects[Index];
+      WindowObjects[Index] = NULL;
+      EngDeleteWnd(pwo);
+      Fvm3dxBeginWrite(&Entry->sequence);
+      Entry->window = 0;
+      Entry->rectangleCount = 0;
+      Entry->complete = 0;
+      Fvm3dxEndWrite(&Entry->sequence);
+      DbgPortLineHex("qemudisp: fvm3dx window renewed, window ", Window);
+   }
+}
+
+/*
+ * ExtEscape(WNDOBJ_SETUP) of the fvm3dx ICD: a WNDOBJ for the window, so GDI reports every change of its visible part.
+ * With FVM3DX_WINDOW_SETUP_RENEW the window's WNDOBJ is made anew: after a mode change GDI keeps the visible part clipped to the old screen.
+ */
 ULONG
 Fvm3dxSetUpWindow(SURFOBJ *pso, ULONG cjIn, PVOID pvIn)
 {
@@ -574,6 +613,10 @@ Fvm3dxSetUpWindow(SURFOBJ *pso, ULONG cjIn, PVOID pvIn)
    {
       DbgPortLine("qemudisp: fvm3dx WNDOBJ_SETUP refused");
       return FALSE;
+   }
+   if ((Setup->flags & FVM3DX_WINDOW_SETUP_RENEW) != 0)
+   {
+      Fvm3dxForgetWindow(Page, Setup->window);
    }
    ULONG FreeEntry = FVM3DX_DISPLAY_WINDOW_COUNT;
    for (ULONG Index = 0; Index < FVM3DX_DISPLAY_WINDOW_COUNT; Index++)
@@ -610,6 +653,7 @@ Fvm3dxSetUpWindow(SURFOBJ *pso, ULONG cjIn, PVOID pvIn)
    Entry->complete = 0;
    Fvm3dxEndWrite(&Entry->sequence);
    ULONG EntryNumber = FreeEntry + 1;
+   WindowObjects[FreeEntry] = pwo;
    WNDOBJ_vSetConsumer(pwo, (PVOID)(ULONG_PTR)EntryNumber);
    Fvm3dxPublishRegion(pwo, Entry);
    DbgPortLineHex("qemudisp: fvm3dx window set up, window ", Setup->window);
