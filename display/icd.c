@@ -61,8 +61,6 @@ DrvEscape(
    ULONG cjOut,
    PVOID pvOut)
 {
-   UNREFERENCED_PARAMETER(pso);
-
    DbgPortLineHex("qemudisp: DrvEscape ", iEsc);
 
    switch (iEsc)
@@ -84,6 +82,10 @@ DrvEscape(
 
          return FALSE;
       }
+
+      case WNDOBJ_SETUP:
+         /* fvm3dx: the ICD announces a window, see display/fvm3dx.c. */
+         return Fvm3dxSetUpWindow(pso, cjIn, pvIn);
 
       case OPENGL_GETINFO:
       {

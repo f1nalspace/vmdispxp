@@ -1,3 +1,4 @@
 # Build output
 /build/
+/build-debugcon/
 /tools/*/build/

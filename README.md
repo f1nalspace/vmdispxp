@@ -43,6 +43,8 @@ Only the **i686 MinGW cross toolchain** is needed — no DDK, no Open Watcom. Th
 
 `qemump.sys` must import `ntoskrnl.exe` and `videoprt.sys`, `qemudisp.dll` **only** `win32k.sys`, both with subsystem 1 (NT native).
 
+The display driver includes `fvm3dx_display_page.h` from the fvm3dx project this repository sits in (`FVM3DX_SHARED`, default `../shared`).
+
 ## The OpenGL ICD
 
 `opengl32.dll` asks the driver twice: `QUERYESCSUPPORT` for `OPENGL_GETINFO`, then `OPENGL_GETINFO` itself. What comes back is not the name of the library but the name of a registry subkey. **On NT that subkey carries four values**, where Windows 9x has a plain string value instead:
@@ -71,6 +73,15 @@ The driver runs under Windows XP with the desktop at 1280×768 in 32 bpp; XP acc
 
 **Tried and rejected: the pixel format DDI in the display driver.** With `DrvDescribePixelFormat` and `DrvSetPixelFormat` present, `opengl32.dll` stops asking for the ICD escape altogether and OpenGL fails outright instead of falling back to software. The code stays in `display/pixelformat.c` behind `make PIXELFORMATS=1`.
 
+## Pointer and 3D windows (fvm3dx)
+
+The fvm3dx device lays every 3D window's picture over the desktop on the host. To keep menus, windows on top and the pointer visible, the driver keeps a **display page** in the last 64 KiB of the video memory (`shared/fvm3dx_display_page.h` of the fvm3dx project; the miniport maps the whole video memory, and no screen mode reaches the page):
+
+- **The visible part of each 3D window.** The ICD announces a window with `ExtEscape(WNDOBJ_SETUP)`; the driver creates a `WNDOBJ` with `EngCreateWnd(WO_RGN_CLIENT)`, and GDI calls back on every change of the window's visible region, also while the application itself draws nothing (a menu runs a modal loop).
+- **The pointer.** On a 32 bpp screen the driver draws the pointer itself, into the frame buffer only, never into the shadow; it is redrawn after every copy of the shadow that touches it. With the shape handed to GDI (`EngSetPointerShape`), XP moves its own pointer and never calls `DrvMovePointer`. **`GCAPS2_ALPHACURSOR` is required:** without it, XP's pointer shadow (on by default) makes GDI draw every pointer in software and the driver hears nothing at all. On 16 bpp GDI keeps the pointer.
+
+Every part of the page has a sequence number (a seqlock); the frame buffer is write-combined, so each step ends with a fence.
+
 ## Diagnostics
 
     make DEBUGCON=1        the drivers write to QEMU's debug console on port 0xE9
@@ -82,7 +93,7 @@ The frame buffer can be read from outside, which is the decisive measurement whe
 ## Content
 
     miniport/        qemump.sys   — miniport, drives the Bochs VBE registers 0x1CE/0x1CF
-    display/         qemudisp.dll — XPDM display driver, shadow buffer, ICD escape
+    display/         qemudisp.dll — XPDM display driver, shadow buffer, ICD escape, display page (display/fvm3dx.c)
     common/          memcpy and memset, and the debug console
     compat/          DDK headers the MinGW toolchain does not ship
     inf/fvm3dx.inf   installs both and registers the ICD

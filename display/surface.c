@@ -71,6 +71,7 @@ DrvEnableSurface(
    }
 
    ppdev->ScreenPtr = VideoMemoryInfo.FrameBufferBase;
+   Fvm3dxDisplayPageAttach(ppdev, VideoMemoryInfo.VideoRamBase, VideoMemoryInfo.VideoRamLength, VideoMemoryInfo.FrameBufferLength);
 
    DbgPortLineHex("qemudisp: framebuffer at ", (unsigned long)ppdev->ScreenPtr);
    DbgPortLineHex("qemudisp: framebuffer length ", VideoMemoryInfo.FrameBufferLength);
@@ -181,6 +182,8 @@ DrvDisableSurface(
    VIDEO_MEMORY VideoMemory;
    PPDEV ppdev = (PPDEV)dhpdev;
 
+   /* fvm3dx: before the video memory goes; GDI may still call back. */
+   Fvm3dxDisplayPageDetach(ppdev);
    IntUnregisterScreenSurface(ppdev->hSurfEng);
    if (ppdev->psoShadow != NULL)
    {

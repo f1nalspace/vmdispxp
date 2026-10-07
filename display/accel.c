@@ -232,6 +232,8 @@ IntFlushRectangle(PPDEV ppdev, const RECTL *pDirtyRectangle)
       sourceRow += ppdev->ScreenDelta;
       targetRow += ppdev->ScreenDelta;
    }
+   /* fvm3dx: the pointer lives in the frame buffer only, so the copy just wiped it there. */
+   Fvm3dxPointerAfterFlush(ppdev, &clipped);
 }
 
 VOID

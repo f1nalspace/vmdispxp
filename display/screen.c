@@ -314,6 +314,12 @@ IntInitScreenInfo(
    pDevInfo->hpalDefault = 0;
    /* The flush and timer events of DrvSynchronizeSurface copy over what GDI drew by itself, display/accel.c. */
    pDevInfo->flGraphicsCaps2 = GCAPS2_SYNCFLUSH | GCAPS2_SYNCTIMER;
+   /* fvm3dx: the driver draws pointers with per-pixel alpha itself on a 32 bit screen. Without the flag, XP's pointer shadow (on by default)
+    * makes GDI draw every pointer in software and never call DrvSetPointerShape or DrvMovePointer, so the device never learns where it is. */
+   if (ppdev->BitsPerPixel == 32)
+   {
+      pDevInfo->flGraphicsCaps2 |= GCAPS2_ALPHACURSOR;
+   }
 
    if (ppdev->BitsPerPixel == 8)
    {

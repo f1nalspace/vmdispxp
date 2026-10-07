@@ -45,6 +45,12 @@ DrvSetPointerShape(
    IN FLONG fl)
 {
 /*   return SPS_DECLINE;*/
+   /* fvm3dx: the driver draws the pointer itself where it can, so that GDI reports every move, see display/fvm3dx.c. */
+   ULONG Taken = Fvm3dxSetPointerShape(pso, psoMask, psoColor, pxlo, xHot, yHot, x, y, fl);
+   if (Taken != SPS_DECLINE)
+   {
+      return Taken;
+   }
    return EngSetPointerShape(pso, psoMask, psoColor, pxlo, xHot, yHot, x, y, prcl, fl);
 }
 
@@ -65,7 +71,11 @@ DrvMovePointer(
    IN LONG y,
    IN RECTL *prcl)
 {
-   EngMovePointer(pso, x, y, prcl);
+   BOOL Moved = Fvm3dxMovePointer(pso, x, y);
+   if (!Moved)
+   {
+      EngMovePointer(pso, x, y, prcl);
+   }
 }
 
 #else

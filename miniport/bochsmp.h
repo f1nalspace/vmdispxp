@@ -15,6 +15,7 @@
 #include <devioctl.h>
 #include <section_attribs.h>
 #include "dbgport.h"
+#include "fvm3dx_display_page.h"
 
 #define VBE_EDID_SIZE                        0x80
 

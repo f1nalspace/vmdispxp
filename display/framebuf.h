@@ -104,6 +104,25 @@ DrvSwapBuffers(
 
 /* qemu-3dfx: the shadow buffer and the drawing functions hooked for it, display/accel.c */
 
+/* fvm3dx: the display page for the fvm3dx device, display/fvm3dx.c. */
+VOID
+Fvm3dxDisplayPageAttach(PPDEV ppdev, PVOID VideoRamBase, ULONG VideoRamLength, ULONG FrameBufferLength);
+
+VOID
+Fvm3dxDisplayPageDetach(PPDEV ppdev);
+
+ULONG
+Fvm3dxSetPointerShape(SURFOBJ *pso, SURFOBJ *psoMask, SURFOBJ *psoColor, XLATEOBJ *pxlo, LONG xHot, LONG yHot, LONG x, LONG y, FLONG fl);
+
+BOOL
+Fvm3dxMovePointer(SURFOBJ *pso, LONG x, LONG y);
+
+VOID
+Fvm3dxPointerAfterFlush(PPDEV ppdev, const RECTL *Flushed);
+
+ULONG
+Fvm3dxSetUpWindow(SURFOBJ *pso, ULONG cjIn, PVOID pvIn);
+
 #define QEMUDISP_SHADOW_HOOKS (HOOK_BITBLT | HOOK_STRETCHBLT | HOOK_STRETCHBLTROP | \
                                HOOK_PLGBLT | HOOK_TEXTOUT | HOOK_PAINT | \
                                HOOK_STROKEPATH | HOOK_FILLPATH | HOOK_STROKEANDFILLPATH | \

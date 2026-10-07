@@ -119,7 +119,8 @@ BochsInitializeSuitableModeInfo(
                                 BochsAvailableResolutions[i].YResolution *
                                 BOCHS_BYTES_PER_PIXEL(BitsPerPixel);
 
-            if (BytesNeeded > DeviceExtension->VramSize64K * 64 * 1024)
+            /* fvm3dx: the last bytes of the video memory hold the display page, see shared/fvm3dx_display_page.h. */
+            if (BytesNeeded > DeviceExtension->VramSize64K * 64 * 1024 - FVM3DX_DISPLAY_PAGE_SIZE)
                 continue;
 
             DeviceExtension->AvailableModeInfo[ModeCount].XResolution = BochsAvailableResolutions[i].XResolution;
@@ -287,12 +288,11 @@ BochsMapVideoMemory(
 
     VideoMemory = DeviceExtension->FrameBuffer.RangeStart;
     MapInformation->VideoRamBase = RequestedAddress->RequestedVirtualAddress;
+    /* fvm3dx: the whole video memory, so the display driver reaches the display page behind the screen. */
     {
-        PBOCHS_MODE CurrentMode = &DeviceExtension->AvailableModeInfo[DeviceExtension->CurrentMode];
+        ULONG VideoMemorySize = DeviceExtension->VramSize64K * 64 * 1024;
 
-        MapInformation->VideoRamLength = (ULONG)CurrentMode->XResolution *
-                                         CurrentMode->YResolution *
-                                         BOCHS_BYTES_PER_PIXEL(CurrentMode->BitsPerPixel);
+        MapInformation->VideoRamLength = (VideoMemorySize < DeviceExtension->FrameBuffer.RangeLength) ? VideoMemorySize : DeviceExtension->FrameBuffer.RangeLength;
     }
 
     Status = VideoPortMapMemory(DeviceExtension,
@@ -326,7 +326,13 @@ BochsMapVideoMemory(
     DbgPortLineHex("qemump: mapped length ", MapInformation->VideoRamLength);
 
     MapInformation->FrameBufferBase = MapInformation->VideoRamBase;
-    MapInformation->FrameBufferLength = MapInformation->VideoRamLength;
+    {
+        PBOCHS_MODE CurrentMode = &DeviceExtension->AvailableModeInfo[DeviceExtension->CurrentMode];
+
+        MapInformation->FrameBufferLength = (ULONG)CurrentMode->XResolution *
+                                            CurrentMode->YResolution *
+                                            BOCHS_BYTES_PER_PIXEL(CurrentMode->BitsPerPixel);
+    }
     StatusBlock->Information = sizeof(*MapInformation);
     StatusBlock->Status = NO_ERROR;
 
