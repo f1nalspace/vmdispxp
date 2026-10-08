@@ -15,8 +15,10 @@ static const BOCHS_SIZE BochsAvailableResolutions[] = {
     { 1152, 864 },  // XGA+
     { 1280, 720 },  // WXGA-H
     { 1280, 768 },  // WXGA
+    { 1280, 800 },  // WXGA (16:10)
     { 1280, 960 },  // SXGA-
     { 1280, 1024 }, // SXGA
+    { 1360, 768 },  // HD ready, as games list it (QEMU's VBE takes widths in steps of 8, so no 1366)
     { 1368, 768 },  // HD ready
     { 1400, 1050 }, // SXGA+
     { 1440, 900 },  // WSXGA
@@ -24,6 +26,8 @@ static const BOCHS_SIZE BochsAvailableResolutions[] = {
     { 1600, 1200 }, // UXGA
     { 1680, 1050 }, // WSXGA+
     { 1920, 1080 }, // FHD
+    { 1920, 1200 }, // WUXGA
+    { 1920, 1440 }, // 4:3 above UXGA
     { 2048, 1536 }, // QXGA
     { 2560, 1440 }, // WQHD
     { 2560, 1600 }, // WQXGA
