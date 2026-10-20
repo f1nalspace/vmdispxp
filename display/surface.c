@@ -182,6 +182,7 @@ DrvDisableSurface(
    VIDEO_MEMORY VideoMemory;
    PPDEV ppdev = (PPDEV)dhpdev;
 
+   DbgPortLineHex("qemudisp: DrvDisableSurface, mode index ", ppdev->ModeIndex);
    /* fvm3dx: before the video memory goes; GDI may still call back. */
    Fvm3dxDisplayPageDetach(ppdev);
    IntUnregisterScreenSurface(ppdev->hSurfEng);
@@ -228,6 +229,7 @@ DrvAssertMode(
    PPDEV ppdev = (PPDEV)dhpdev;
    ULONG ulTemp;
 
+   DbgPortLineHex(bEnable ? "qemudisp: DrvAssertMode on, mode index " : "qemudisp: DrvAssertMode off, mode index ", ppdev->ModeIndex);
    if (bEnable)
    {
       /*
@@ -244,6 +246,9 @@ DrvAssertMode(
       {
 	     IntSetPalette(dhpdev, ppdev->PaletteEntries, 0, 256);
       }
+
+      /* fvm3dx: GDI went back to a PDEV it kept, whose surface mapped the page before. */
+      Fvm3dxDisplayPageAssert(ppdev);
 
       /* Coming back from a full screen DOS box or another desktop, the adapter's memory
        * holds whatever that left behind. The shadow still has the truth. */

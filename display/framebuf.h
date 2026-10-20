@@ -111,6 +111,9 @@ Fvm3dxDisplayPageAttach(PPDEV ppdev, PVOID VideoRamBase, ULONG VideoRamLength, U
 VOID
 Fvm3dxDisplayPageDetach(PPDEV ppdev);
 
+VOID
+Fvm3dxDisplayPageAssert(PPDEV ppdev);
+
 ULONG
 Fvm3dxSetPointerShape(SURFOBJ *pso, SURFOBJ *psoMask, SURFOBJ *psoColor, XLATEOBJ *pxlo, LONG xHot, LONG yHot, LONG x, LONG y, FLONG fl);
 

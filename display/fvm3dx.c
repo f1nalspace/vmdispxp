@@ -43,13 +43,26 @@ typedef struct _RECTANGLE_BATCH
    RECTL Rectangles[ENUMERATION_BATCH];
 } RECTANGLE_BATCH;
 
-/* Set while a surface is mapped; NULL between DrvDisableSurface and the next DrvEnableSurface, when GDI may still call back. */
+/* The page as the screen's PDEV maps it; NULL while no PDEV with an enabled surface maps it, when GDI may still call back. */
 static volatile Fvm3dxDisplayPage *DisplayPage;
-/*
- * The PDEV whose surface mapped the page. On a mode change GDI enables the new PDEV's surface before it disables the old one, so only the PDEV
- * that attached the page may detach it.
- */
+/* The PDEV whose mapping DisplayPage points into. */
 static PPDEV DisplayPageOwner;
+
+/*
+ * Every PDEV with an enabled surface maps the video memory on its own, and every mapping reaches the same page. Usually GDI enables the new PDEV's
+ * surface on a mode change and then disables the old one. While something still holds the desktop's PDEV -- Painkiller's Direct3D device on the
+ * desktop window -- GDI keeps it beside the full screen one and goes back to it with DrvAssertMode alone, without DrvEnableSurface (docs/LOG.md
+ * [1989]). The page then has to come from that PDEV's mapping again, or the driver loses it until the next new PDEV.
+ */
+#define FVM3DX_PAGE_MAPPING_COUNT 4
+
+typedef struct _FVM3DX_PAGE_MAPPING
+{
+   PPDEV Device;
+   volatile Fvm3dxDisplayPage *Page;
+} FVM3DX_PAGE_MAPPING;
+
+static FVM3DX_PAGE_MAPPING PageMappings[FVM3DX_PAGE_MAPPING_COUNT];
 /* Cleared once per boot: a page from before a reboot names drawables that no longer exist. A mode change keeps it. */
 static BOOL DisplayPageClearedThisBoot;
 /* The device's colour layout, for turning pointer pixels into RGB. */
@@ -171,21 +184,45 @@ Fvm3dxReadPixel(SURFOBJ *Surface, LONG Row, LONG Column, ULONG *Value)
    }
 }
 
-VOID
-Fvm3dxDisplayPageAttach(PPDEV ppdev, PVOID VideoRamBase, ULONG VideoRamLength, ULONG FrameBufferLength)
+/* The mapping kept for a PDEV, or with NULL a free one; NULL if there is none. */
+static FVM3DX_PAGE_MAPPING *
+Fvm3dxFindPageMapping(PPDEV ppdev)
 {
+   for (ULONG Index = 0; Index < FVM3DX_PAGE_MAPPING_COUNT; Index++)
+   {
+      if (PageMappings[Index].Device == ppdev)
+      {
+         return &PageMappings[Index];
+      }
+   }
+   return NULL;
+}
+
+/* From here on the driver writes the page through this PDEV's mapping, and reads pointer pixels in its colour layout. */
+static VOID
+Fvm3dxUsePageMapping(const FVM3DX_PAGE_MAPPING *Mapping)
+{
+   PPDEV ppdev = Mapping->Device;
    DeviceRedMask = ppdev->RedMask;
    DeviceGreenMask = ppdev->GreenMask;
    DeviceBlueMask = ppdev->BlueMask;
+   DisplayPage = Mapping->Page;
+   DisplayPageOwner = ppdev;
+}
+
+VOID
+Fvm3dxDisplayPageAttach(PPDEV ppdev, PVOID VideoRamBase, ULONG VideoRamLength, ULONG FrameBufferLength)
+{
+   volatile Fvm3dxDisplayPage *Page = NULL;
    if (VideoRamLength < FrameBufferLength + FVM3DX_DISPLAY_PAGE_SIZE)
    {
       DbgPortLineHex("qemudisp: no room for the fvm3dx display page, video memory ", VideoRamLength);
-      DisplayPage = NULL;
-      DisplayPageOwner = NULL;
-      return;
    }
-   volatile Fvm3dxDisplayPage *Page = (volatile Fvm3dxDisplayPage *)((PBYTE)VideoRamBase + VideoRamLength - FVM3DX_DISPLAY_PAGE_SIZE);
-   if (!DisplayPageClearedThisBoot)
+   else
+   {
+      Page = (volatile Fvm3dxDisplayPage *)((PBYTE)VideoRamBase + VideoRamLength - FVM3DX_DISPLAY_PAGE_SIZE);
+   }
+   if (Page != NULL && !DisplayPageClearedThisBoot)
    {
       Page->magic = 0;
       Fvm3dxFence();
@@ -198,19 +235,63 @@ Fvm3dxDisplayPageAttach(PPDEV ppdev, PVOID VideoRamBase, ULONG VideoRamLength, U
       DisplayPageClearedThisBoot = TRUE;
       DbgPortLineHex("qemudisp: fvm3dx display page set up at ", (unsigned long)Page);
    }
-   DisplayPage = Page;
-   DisplayPageOwner = ppdev;
+   FVM3DX_PAGE_MAPPING *Mapping = Fvm3dxFindPageMapping(ppdev);
+   if (Mapping == NULL)
+   {
+      const PPDEV FreeMapping = NULL;
+      Mapping = Fvm3dxFindPageMapping(FreeMapping);
+   }
+   if (Mapping == NULL)
+   {
+      /* More PDEVs with a surface than GDI ever keeps: this one gets the page, but going back to another cannot find it again. */
+      DbgPortLine("qemudisp: fvm3dx display page, no free mapping");
+      FVM3DX_PAGE_MAPPING Unkept = { ppdev, Page };
+      Fvm3dxUsePageMapping(&Unkept);
+      return;
+   }
+   Mapping->Device = ppdev;
+   Mapping->Page = Page;
+   Fvm3dxUsePageMapping(Mapping);
 }
 
 VOID
 Fvm3dxDisplayPageDetach(PPDEV ppdev)
 {
+   FVM3DX_PAGE_MAPPING *Mapping = Fvm3dxFindPageMapping(ppdev);
+   if (Mapping != NULL)
+   {
+      Mapping->Device = NULL;
+      Mapping->Page = NULL;
+   }
    if (DisplayPageOwner != ppdev)
    {
       return;
    }
    DisplayPage = NULL;
    DisplayPageOwner = NULL;
+   /* A PDEV GDI kept beside this one still maps the same page. */
+   for (ULONG Index = 0; Index < FVM3DX_PAGE_MAPPING_COUNT; Index++)
+   {
+      if (PageMappings[Index].Device != NULL)
+      {
+         Fvm3dxUsePageMapping(&PageMappings[Index]);
+         DbgPortLineHex("qemudisp: fvm3dx display page kept through mode index ", PageMappings[Index].Device->ModeIndex);
+         break;
+      }
+   }
+}
+
+/* DrvAssertMode has made this PDEV the screen again, without enabling its surface anew. */
+VOID
+Fvm3dxDisplayPageAssert(PPDEV ppdev)
+{
+   FVM3DX_PAGE_MAPPING *Mapping = Fvm3dxFindPageMapping(ppdev);
+   if (Mapping == NULL)
+   {
+      return;
+   }
+   Fvm3dxUsePageMapping(Mapping);
+   DbgPortLineHex("qemudisp: fvm3dx display page back with mode index ", ppdev->ModeIndex);
 }
 
 /*
