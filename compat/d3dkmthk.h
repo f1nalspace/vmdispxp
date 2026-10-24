@@ -5633,7 +5633,7 @@ typedef _Check_return_ NTSTATUS (APIENTRY *PFND3DKMT_ENUMADAPTERS3)(_Inout_ D3DK
 typedef _Check_return_ NTSTATUS (APIENTRY *PFND3DKMT_PINRESOURCES)(_Inout_ D3DKMT_PINRESOURCES*);
 typedef _Check_return_ NTSTATUS (APIENTRY *PFND3DKMT_UNPINRESOURCES)(_In_ CONST D3DKMT_UNPINRESOURCES*);
 #ifdef _WIN32
-/* qemu-3dfx: the struct itself is missing from this header, forward declare it. */
+/* fvm3dx: the struct itself is missing from this header, forward declare it. */
 typedef struct _D3DKMT_DISPLAYPORT_OPERATION_HEADER D3DKMT_DISPLAYPORT_OPERATION_HEADER;
 typedef _Check_return_ NTSTATUS (APIENTRY *PFND3DKMT_DISPLAYPORT_OPERATION)(_Inout_ D3DKMT_DISPLAYPORT_OPERATION_HEADER*);
 #endif // _WIN32

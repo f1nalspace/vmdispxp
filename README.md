@@ -1,6 +1,6 @@
-# vmdispxp — XPDM display driver for QEMU, with the qemu-3dfx OpenGL ICD
+# vmdispxp — XPDM display driver for QEMU, with the fvm3dx OpenGL ICD
 
-An XPDM display driver pair for Windows 2000/XP guests on **QEMU's standard VGA** (`-device VGA`, `PCI\VEN_1234&DEV_1111`). It offers free resolutions at 16 and 32 bpp, accelerates 2D through a shadow buffer, and announces the qemu-3dfx OpenGL ICD `fvm3dx32.dll` to Windows.
+An XPDM display driver pair for Windows 2000/XP guests on **QEMU's standard VGA** (`-device VGA`, `PCI\VEN_1234&DEV_1111`). It offers free resolutions at 16 and 32 bpp, accelerates 2D through a shadow buffer, and announces the fvm3dx OpenGL ICD `fvm3dx32.dll` to Windows.
 
 This is the NT counterpart to `vmdisp9x`, which does the same job for Windows 9x.
 
@@ -20,7 +20,7 @@ This driver is built on **ReactOS** code and stays under its licence, **GPL-2.0-
 
 Added here are `display/icd.c` (the ICD escape), `display/accel.c` (the shadow buffer), `common/kmem.c` and `common/dbgport.h`. Changed are `display/enable.c`, `display/framebuf.h`, `display/surface.c` and `miniport/bochsmp.c`.
 
-Two `compat/` headers needed a fix for the MinGW toolchain, both marked with a `qemu-3dfx:` comment: `d3dkmdt.h` redeclares `POWER_ACTION` and `DEVICE_POWER_STATE`, which MinGW's `winnt.h` already has, and `d3dkmthk.h` uses a type that its own copy never declares.
+Two `compat/` headers needed a fix for the MinGW toolchain, both marked with a `fvm3dx:` comment: `d3dkmdt.h` redeclares `POWER_ACTION` and `DEVICE_POWER_STATE`, which MinGW's `winnt.h` already has, and `d3dkmthk.h` uses a type that its own copy never declares.
 
 ## What it is for
 

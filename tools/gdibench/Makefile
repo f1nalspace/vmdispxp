@@ -11,7 +11,7 @@ BUILD := build
 CROSS := i686-w64-mingw32-
 
 # -mcrtdll=msvcrt-os keeps the toolchain off the UCRT, which no Windows before Vista has.
-# -march=prescott is the same floor as the wrappers, so the binary runs in the 9x guest too.
+# -march=prescott is the floor of every user mode guest part, so the binary runs in the 9x guest too.
 CFLAGS := -std=gnu99 -Wall -Wextra -O2 -march=prescott -mtune=core2 -mcrtdll=msvcrt-os
 
 .PHONY: all clean

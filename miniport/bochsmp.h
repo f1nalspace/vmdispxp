@@ -46,7 +46,7 @@ typedef struct
     USHORT YResolution;
 } BOCHS_SIZE, *PBOCHS_SIZE;
 
-/* qemu-3dfx: a mode is a resolution plus a colour depth. The original driver offered
+/* fvm3dx: a mode is a resolution plus a colour depth. The original driver offered
  * 32 bpp only, which is enough for a desktop but not for the games of the era -- a
  * DirectDraw title asking for 640x480x16 gets nothing back. */
 typedef struct

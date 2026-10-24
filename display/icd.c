@@ -1,7 +1,7 @@
 /*
- * OpenGL ICD announcement for the qemu-3dfx passthrough.
+ * OpenGL ICD announcement for the fvm3dx OpenGL driver.
  *
- * Copyright (C) 2026 qemu-3dfx-build
+ * Copyright (C) 2026 Torsten Spaete
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -17,8 +17,7 @@
  * OpenGLdrivers that holds it -- opengl32.dll looks the DLL up there and loads it.
  *
  * On NT the name is WCHAR where the 9x flavour uses CHAR, and that is exactly what makes the
- * structure 532 bytes wide, the buffer length opengl32.dll passes in. See
- * qemu-3dfx/wrappers/mesa/src/icddrv.c for the other side of this handshake.
+ * structure 532 bytes wide, the buffer length opengl32.dll passes in.
  */
 
 /* QUERYESCSUPPORT (8) comes from wingdi.h, OPENGL_GETINFO (4353 == 0x1101) from winddi.h. */

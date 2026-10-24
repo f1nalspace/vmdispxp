@@ -2,7 +2,7 @@
 #
 # Sources come from ReactOS (GPL-2.0-or-later); see README.md for the exact
 # revision and for what we changed. Built with the same MinGW cross toolchain
-# that builds the qemu-3dfx wrappers -- no DDK and no Open Watcom needed.
+# that builds the fvm3dx guest parts -- no DDK and no Open Watcom needed.
 
 CROSS_PREFIX ?= i686-w64-mingw32-
 CC            = $(CROSS_PREFIX)gcc
@@ -30,7 +30,7 @@ MINIPORT_NAME ?= qemump
 DISPLAY_NAME  ?= qemudisp
 
 # Kernel mode code must not touch SSE/MMX: the FPU state is not saved for us.
-# This deliberately differs from the wrappers, which target SSE3.
+# This deliberately differs from the user mode guest parts, which target SSE3.
 ARCH_FLAGS = -march=i686 -mno-sse -mno-mmx -mno-3dnow -mfpmath=387
 
 COMMON_CFLAGS = -Wall -O2 $(ARCH_FLAGS) -ffreestanding -fno-stack-protector -fno-asynchronous-unwind-tables -fno-ident -mno-stack-arg-probe -D_X86_ -DWIN32 -Icompat -Icommon -I$(FVM3DX_SHARED) $(DEBUGCON_FLAGS) $(PIXELFORMAT_FLAGS) -isystem $(DDK_INCLUDE)

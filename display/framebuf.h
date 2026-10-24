@@ -49,7 +49,7 @@ typedef struct _PDEV
    HPALETTE DefaultPalette;
    PALETTEENTRY *PaletteEntries;
 
-   /* qemu-3dfx: the shadow GDI actually draws on. ScreenPtr stays the adapter's frame
+   /* fvm3dx: the shadow GDI actually draws on. ScreenPtr stays the adapter's frame
     * buffer and is only ever written, never read, once the shadow is up. */
    ULONG BytesPerPixel;
    HSURF hsurfShadow;
@@ -102,7 +102,7 @@ DrvSwapBuffers(
    SURFOBJ *pso,
    WNDOBJ *pwo);
 
-/* qemu-3dfx: the shadow buffer and the drawing functions hooked for it, display/accel.c */
+/* fvm3dx: the shadow buffer and the drawing functions hooked for it, display/accel.c */
 
 /* fvm3dx: the display page for the fvm3dx device, display/fvm3dx.c. */
 VOID

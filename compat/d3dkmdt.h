@@ -24,7 +24,7 @@
 
 #include "d3dukmdt.h"
 
-/* qemu-3dfx: was #ifndef __REACTOS__ -- MinGW's winnt.h already declares POWER_ACTION and friends. */
+/* fvm3dx: was #ifndef __REACTOS__ -- MinGW's winnt.h already declares POWER_ACTION and friends. */
 #if 0
 
 #define NTSTATUS                int32_t

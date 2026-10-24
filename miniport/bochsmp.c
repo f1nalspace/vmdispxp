@@ -278,7 +278,7 @@ BochsMapVideoMemory(
 {
     VP_STATUS Status;
     PHYSICAL_ADDRESS VideoMemory;
-    /* qemu-3dfx: P6CACHE asks for a write-combined (USWC) mapping instead of the plain
+    /* fvm3dx: P6CACHE asks for a write-combined (USWC) mapping instead of the plain
      * uncached one. On an emulated adapter that is not a nicety -- the host here is an
      * AMD, and under NPT the guest's own memory type is what the hardware uses, so an
      * uncached mapping really does turn every store into a single bus transaction.
