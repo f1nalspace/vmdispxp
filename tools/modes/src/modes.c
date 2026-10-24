@@ -9,7 +9,7 @@
  * With -check it switches nothing: for each common game resolution it says whether Windows lists it, whether the driver offers it
  * (EDS_RAWMODE, before Windows drops what the monitor supposedly cannot show), and what ChangeDisplaySettings answers with CDS_TEST.
  *
- * Output is German because docs/LOG.md quotes it verbatim; the comments are English.
+ * Output is German; the comments are English.
  */
 
 #include <windows.h>

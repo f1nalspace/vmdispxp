@@ -6,7 +6,7 @@
  * The wine9x route (winedd -> wined3d -> OpenGL) is a different measurement entirely and
  * is what DDTEST.BAT does; the two must not be confused.
  *
- * Output is German because docs/LOG.md quotes it verbatim; the comments are English.
+ * Output is German; the comments are English.
  */
 
 #include <windows.h>

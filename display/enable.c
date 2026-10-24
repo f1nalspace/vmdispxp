@@ -59,7 +59,7 @@ static DRVFN DrvFunctionTable[] =
    /* Off, and measured: with these three in the table opengl32 stops asking for the ICD
     * altogether -- the OPENGL_GETINFO escape goes from 39 calls to none, and OpenGL then
     * fails outright instead of falling back to software. Announcing pixel formats here
-    * seems to tell opengl32 that this driver renders OpenGL by itself. See docs/LOG.md.
+    * seems to tell opengl32 that this driver renders OpenGL by itself.
     */
    {INDEX_DrvDescribePixelFormat, (PFN)DrvDescribePixelFormat},
    {INDEX_DrvSetPixelFormat, (PFN)DrvSetPixelFormat},

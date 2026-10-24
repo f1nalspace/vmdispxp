@@ -14,7 +14,7 @@
  * back to GDI, and the rectangle it touched is then copied over in one go.
  *
  * The reason is one measurement: on this adapter the frame buffer costs 41 MB/s to write
- * and 46 MB/s to read (docs/LOG.md). Mapping it write-combined fixed the writes; reads
+ * and 46 MB/s to read. Mapping it write-combined fixed the writes; reads
  * stay expensive, because that is what write-combining is. Anything GDI does that reads
  * the destination -- scrolling a window, alpha blending, the pointer's save-under -- is
  * therefore still paid at 46 MB/s, and that is the whole of the complaint. A shadow in
@@ -28,7 +28,7 @@
 #include "framebuf.h"
 
 #ifdef QEMU_DEBUGCON
-/* Diagnostics for smoothed text and GDI's own drawing, docs/LOG.md [1077], [1080]. GDI announces nearly every drawing,
+/* Diagnostics for smoothed text and GDI's own drawing. GDI announces nearly every drawing,
  * so the announcements are counted, and one summary line goes out per SUMMARY_TIMER_INTERVAL timer events. Both kinds
  * of line are capped on their own, so a long session cannot fill the disk and neither kind can starve the other. */
 #define TEXT_LINE_LIMIT          1000
@@ -325,8 +325,8 @@ UnionRectangle(RECTL *pTarget, const RECTL *pOther)
 /*
  * DrvSynchronizeSurface
  *
- * GDI can draw into the shadow by itself, past every hook: ClearType text still went missing with GCAPS_GRAY16
- * (docs/LOG.md [1076]). With HOOK_SYNCHRONIZE, GDI calls here before it touches the surface, with the rectangle it is
+ * GDI can draw into the shadow by itself, past every hook: ClearType text still went missing with GCAPS_GRAY16.
+ * With HOOK_SYNCHRONIZE, GDI calls here before it touches the surface, with the rectangle it is
  * about to draw on. The drawing has not happened yet, so the rectangle is only noted, and copied over on the next flush
  * or timer event (GCAPS2_SYNCFLUSH, GCAPS2_SYNCTIMER).
  */

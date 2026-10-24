@@ -6,7 +6,7 @@
  * interesting split is write versus read: an emulated frame buffer is usually cheap to
  * write and ruinous to read, and only a measurement says which of the two we are in.
  *
- * Output is German because docs/LOG.md quotes it verbatim; the comments are English.
+ * Output is German; the comments are English.
  */
 
 #include <windows.h>

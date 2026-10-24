@@ -51,8 +51,8 @@ static PPDEV DisplayPageOwner;
 /*
  * Every PDEV with an enabled surface maps the video memory on its own, and every mapping reaches the same page. Usually GDI enables the new PDEV's
  * surface on a mode change and then disables the old one. While something still holds the desktop's PDEV -- Painkiller's Direct3D device on the
- * desktop window -- GDI keeps it beside the full screen one and goes back to it with DrvAssertMode alone, without DrvEnableSurface (docs/LOG.md
- * [1989]). The page then has to come from that PDEV's mapping again, or the driver loses it until the next new PDEV.
+ * desktop window -- GDI keeps it beside the full screen one and goes back to it with DrvAssertMode alone, without DrvEnableSurface.
+ * The page then has to come from that PDEV's mapping again, or the driver loses it until the next new PDEV.
  */
 #define FVM3DX_PAGE_MAPPING_COUNT 4
 
@@ -297,8 +297,8 @@ Fvm3dxDisplayPageAssert(PPDEV ppdev)
 /*
  * --- the pointer ---
  *
- * The driver draws the pointer itself: with the shape handed to GDI (EngSetPointerShape), XP moves its own pointer and never calls DrvMovePointer
- * (docs/LOG.md [1414]), so the device would not learn where the pointer is. It is drawn into the frame buffer only, never into the shadow GDI
+ * The driver draws the pointer itself: with the shape handed to GDI (EngSetPointerShape), XP moves its own pointer and never calls DrvMovePointer,
+ * so the device would not learn where the pointer is. It is drawn into the frame buffer only, never into the shadow GDI
  * draws on: where it was is restored from the shadow, and after every copy of the shadow that touches it, it is drawn again. 32 bit screens
  * only; on others GDI keeps the pointer, and the device shows none of its own.
  */

@@ -282,7 +282,7 @@ BochsMapVideoMemory(
      * uncached one. On an emulated adapter that is not a nicety -- the host here is an
      * AMD, and under NPT the guest's own memory type is what the hardware uses, so an
      * uncached mapping really does turn every store into a single bus transaction.
-     * Measured before the change: 41.6 MB/s filling the screen, see docs/LOG.md. */
+     * Measured before the change: 41.6 MB/s filling the screen. */
     ULONG MemSpace = VIDEO_MEMORY_SPACE_MEMORY | VIDEO_MEMORY_SPACE_P6CACHE;
 
     VideoDebugPrint((Info, "Bochs: BochsMapVideoMemory Entry\n"));
