@@ -8,6 +8,9 @@
  *
  * With -check it switches nothing: for each common game resolution it says whether Windows lists it, whether the driver offers it
  * (EDS_RAWMODE, before Windows drops what the monitor supposedly cannot show), and what ChangeDisplaySettings answers with CDS_TEST.
+ * It names the refresh rates of each resolution too, as Windows lists them and as the driver offers them.
+ *
+ * A switch takes a refresh rate after the depth; without one Windows chooses it.
  *
  * Output is German; the comments are English.
  */
@@ -119,9 +122,10 @@ static void ListModes(void)
    ReportLine(line);
 }
 
-static int SwitchMode(int width, int height, int bitsPerPixel)
+static int SwitchMode(int width, int height, int bitsPerPixel, int refreshRate)
 {
    char line[256];
+   char rateText[32] = "";
    DEVMODEA displayMode;
    LONG testResult;
    LONG applyResult;
@@ -132,10 +136,17 @@ static int SwitchMode(int width, int height, int bitsPerPixel)
    displayMode.dmPelsHeight = (DWORD)height;
    displayMode.dmBitsPerPel = (DWORD)bitsPerPixel;
    displayMode.dmFields = DM_PELSWIDTH | DM_PELSHEIGHT | DM_BITSPERPEL;
+   /* A rate of 0 leaves the choice to Windows. */
+   if (refreshRate > 0)
+   {
+      displayMode.dmDisplayFrequency = (DWORD)refreshRate;
+      displayMode.dmFields |= DM_DISPLAYFREQUENCY;
+      sprintf(rateText, " at %d Hz", refreshRate);
+   }
 
    testResult = ChangeDisplaySettingsA(&displayMode, CDS_TEST);
-   sprintf(line, "Test        %d x %d x %d  ->  %s (%ld)",
-           width, height, bitsPerPixel, ChangeDisplaySettingsResultText(testResult), (long)testResult);
+   sprintf(line, "Test        %d x %d x %d%s  ->  %s (%ld)",
+           width, height, bitsPerPixel, rateText, ChangeDisplaySettingsResultText(testResult), (long)testResult);
    ReportLine(line);
    if (testResult != DISP_CHANGE_SUCCESSFUL)
    {
@@ -145,8 +156,8 @@ static int SwitchMode(int width, int height, int bitsPerPixel)
    /* CDS_UPDATEREGISTRY makes the mode survive the next start; without it the desktop
     * falls back as soon as anything re-reads the settings. */
    applyResult = ChangeDisplaySettingsA(&displayMode, CDS_UPDATEREGISTRY);
-   sprintf(line, "Switch      %d x %d x %d  ->  %s (%ld)",
-           width, height, bitsPerPixel, ChangeDisplaySettingsResultText(applyResult), (long)applyResult);
+   sprintf(line, "Switch      %d x %d x %d%s  ->  %s (%ld)",
+           width, height, bitsPerPixel, rateText, ChangeDisplaySettingsResultText(applyResult), (long)applyResult);
    ReportLine(line);
    return (applyResult == DISP_CHANGE_SUCCESSFUL) ? 0 : 1;
 }
@@ -175,10 +186,41 @@ static BOOL IsModeEnumerated(DWORD width, DWORD height, DWORD bitsPerPixel, DWOR
    }
 }
 
+/* The refresh rates of the modes of this size and depth enumerated with these flags (0 or EDS_RAWMODE), as " 60 120 144"; " none" without one. */
+static void DescribeRates(DWORD width, DWORD height, DWORD bitsPerPixel, DWORD enumerationFlags, char *text, size_t textSize)
+{
+   DEVMODEA displayMode;
+   DWORD modeIndex;
+   size_t used = 0;
+
+   text[0] = '\0';
+   for (modeIndex = 0; ; modeIndex++)
+   {
+      BOOL enumerated;
+      ZeroMemory(&displayMode, sizeof(displayMode));
+      displayMode.dmSize = sizeof(displayMode);
+      enumerated = EnumDisplaySettingsExA(NULL, modeIndex, &displayMode, enumerationFlags);
+      if (!enumerated)
+      {
+         break;
+      }
+      if (displayMode.dmPelsWidth == width && displayMode.dmPelsHeight == height && displayMode.dmBitsPerPel == bitsPerPixel && used + 8 < textSize)
+      {
+         int written = sprintf(text + used, " %lu", (unsigned long)displayMode.dmDisplayFrequency);
+         used += (size_t)written;
+      }
+   }
+   if (used == 0)
+   {
+      strcpy(text, " none");
+   }
+}
+
 static void CheckResolutions(void)
 {
    const size_t resolutionCount = sizeof(checkedResolutions) / sizeof(checkedResolutions[0]);
-   char line[256];
+   /* Room for both lists of rates beside the rest of the line. */
+   char line[512];
    size_t resolutionIndex;
 
    ReportLine("");
@@ -192,6 +234,8 @@ static void CheckResolutions(void)
       DEVMODEA displayMode;
       LONG testResult;
       const char *testText;
+      char listedRates[96];
+      char rawRates[96];
 
       ZeroMemory(&displayMode, sizeof(displayMode));
       displayMode.dmSize = sizeof(displayMode);
@@ -201,7 +245,9 @@ static void CheckResolutions(void)
       displayMode.dmFields = DM_PELSWIDTH | DM_PELSHEIGHT | DM_BITSPERPEL;
       testResult = ChangeDisplaySettingsA(&displayMode, CDS_TEST);
       testText = ChangeDisplaySettingsResultText(testResult);
-      sprintf(line, "  %4lu x %4lu   listed %-3s   raw %-3s   test %s (%ld)", (unsigned long)resolution->width, (unsigned long)resolution->height, listed ? "yes" : "no", raw ? "yes" : "no", testText, (long)testResult);
+      DescribeRates(resolution->width, resolution->height, CHECK_BITS_PER_PIXEL, 0, listedRates, sizeof(listedRates));
+      DescribeRates(resolution->width, resolution->height, CHECK_BITS_PER_PIXEL, EDS_RAWMODE, rawRates, sizeof(rawRates));
+      sprintf(line, "  %4lu x %4lu   listed %-3s   raw %-3s   test %s (%ld)   rates listed%s, raw%s", (unsigned long)resolution->width, (unsigned long)resolution->height, listed ? "yes" : "no", raw ? "yes" : "no", testText, (long)testResult, listedRates, rawRates);
       ReportLine(line);
    }
 }
@@ -213,8 +259,9 @@ int main(int argc, char **argv)
    int width = 0;
    int height = 0;
    int bitsPerPixel = 32;
+   int refreshRate = 0;
 
-   /* modes.exe [ausgabedatei] [breite hoehe [bits]], or modes.exe [ausgabedatei] -check */
+   /* modes.exe [ausgabedatei] [breite hoehe [bits [hz]]], or modes.exe [ausgabedatei] -check */
    if (argc > argumentIndex && argv[argumentIndex][0] != '\0' && (argv[argumentIndex][0] < '0' || argv[argumentIndex][0] > '9'))
    {
       outputPath = argv[argumentIndex];
@@ -228,6 +275,10 @@ int main(int argc, char **argv)
       if (argc > argumentIndex)
       {
          bitsPerPixel = atoi(argv[argumentIndex]);
+      }
+      if (argc > argumentIndex + 1)
+      {
+         refreshRate = atoi(argv[argumentIndex + 1]);
       }
    }
 
@@ -247,7 +298,7 @@ int main(int argc, char **argv)
 
    if (width > 0 && height > 0)
    {
-      int failed = SwitchMode(width, height, bitsPerPixel);
+      int failed = SwitchMode(width, height, bitsPerPixel, refreshRate);
       ReportLine("");
       ListModes();
       if (reportFile != NULL)

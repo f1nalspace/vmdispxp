@@ -107,7 +107,7 @@ BochsInitializeSuitableModeInfo(
     _In_ PBOCHS_DEVICE_EXTENSION DeviceExtension,
     _In_ ULONG PotentialModeCount)
 {
-    ULONG i, Depth, ModeCount = 0;
+    ULONG i, Depth, RateIndex, ModeCount = 0;
 
     for (i = 0; i < ARRAYSIZE(BochsAvailableResolutions) && ModeCount < PotentialModeCount; i++)
     {
@@ -127,10 +127,15 @@ BochsInitializeSuitableModeInfo(
             if (BytesNeeded > DeviceExtension->VramSize64K * 64 * 1024 - FVM3DX_DISPLAY_PAGE_SIZE)
                 continue;
 
-            DeviceExtension->AvailableModeInfo[ModeCount].XResolution = BochsAvailableResolutions[i].XResolution;
-            DeviceExtension->AvailableModeInfo[ModeCount].YResolution = BochsAvailableResolutions[i].YResolution;
-            DeviceExtension->AvailableModeInfo[ModeCount].BitsPerPixel = BitsPerPixel;
-            ModeCount++;
+            /* fvm3dx: one entry per refresh rate, BOCHS_DEFAULT_REFRESH_RATE first. */
+            for (RateIndex = 0; RateIndex < DeviceExtension->RefreshRateCount && ModeCount < PotentialModeCount; RateIndex++)
+            {
+                DeviceExtension->AvailableModeInfo[ModeCount].XResolution = BochsAvailableResolutions[i].XResolution;
+                DeviceExtension->AvailableModeInfo[ModeCount].YResolution = BochsAvailableResolutions[i].YResolution;
+                DeviceExtension->AvailableModeInfo[ModeCount].BitsPerPixel = BitsPerPixel;
+                DeviceExtension->AvailableModeInfo[ModeCount].Frequency = DeviceExtension->RefreshRates[RateIndex];
+                ModeCount++;
+            }
         }
     }
 
@@ -142,6 +147,57 @@ BochsInitializeSuitableModeInfo(
 
     DeviceExtension->AvailableModeCount = ModeCount;
     return TRUE;
+}
+
+/* fvm3dx: the refresh rates the modes are offered with -- BOCHS_DEFAULT_REFRESH_RATE first, then the rates of the host's screen that QEMU's std VGA reports, in ascending order without doubles.
+ * Another VGA or an older QEMU reports none: every mode has the default rate alone. */
+CODE_SEG("PAGE")
+static VOID
+BochsReadRefreshRates(
+    _Inout_ PBOCHS_DEVICE_EXTENSION DeviceExtension,
+    _In_ USHORT Version)
+{
+    ULONG ReportedCount = 0;
+    ULONG ReportedIndex;
+
+    DeviceExtension->RefreshRates[0] = BOCHS_DEFAULT_REFRESH_RATE;
+    DeviceExtension->RefreshRateCount = 1;
+    if (Version >= VBE_DISPI_ID5)
+    {
+        ReportedCount = BochsReadDispI(DeviceExtension, VBE_DISPI_INDEX_REFRESH_RATE_COUNT);
+    }
+    if (ReportedCount > BOCHS_MAX_REFRESH_RATES)
+    {
+        ReportedCount = BOCHS_MAX_REFRESH_RATES;
+    }
+    for (ReportedIndex = 0; ReportedIndex < ReportedCount; ReportedIndex++)
+    {
+        USHORT Rate = BochsReadDispI(DeviceExtension, VBE_DISPI_INDEX_REFRESH_RATE_FIRST + ReportedIndex);
+        BOOLEAN AlreadyListed = FALSE;
+        ULONG Position;
+
+        for (Position = 0; Position < DeviceExtension->RefreshRateCount; Position++)
+        {
+            if (DeviceExtension->RefreshRates[Position] == Rate)
+            {
+                AlreadyListed = TRUE;
+            }
+        }
+        if (Rate == 0 || AlreadyListed)
+        {
+            continue;
+        }
+        /* Sorted in behind the default rate, which stays first. */
+        Position = DeviceExtension->RefreshRateCount;
+        while (Position > 1 && DeviceExtension->RefreshRates[Position - 1] > Rate)
+        {
+            DeviceExtension->RefreshRates[Position] = DeviceExtension->RefreshRates[Position - 1];
+            Position--;
+        }
+        DeviceExtension->RefreshRates[Position] = Rate;
+        DeviceExtension->RefreshRateCount++;
+    }
+    DbgPortLineHex("qemump: refresh rates ", DeviceExtension->RefreshRateCount);
 }
 
 CODE_SEG("PAGE")
@@ -202,6 +258,7 @@ BochsGetControllerInfo(
     {
         DeviceExtension->VramSize64K = BochsReadDispI(DeviceExtension, VBE_DISPI_INDEX_VIDEO_MEMORY_64K);
     }
+    BochsReadRefreshRates(DeviceExtension, Version);
     VideoDebugPrint((Info, "Bochs: capabilities %dx%d (%d MB)\n",
                      DeviceExtension->MaxXResolution,
                      DeviceExtension->MaxYResolution,
@@ -238,7 +295,7 @@ BochsGetModeInfo(
     ModeInfo->ScreenStride = AvailableModeInfo->XResolution * BOCHS_BYTES_PER_PIXEL(BitsPerPixel);
     ModeInfo->NumberOfPlanes = 1;
     ModeInfo->BitsPerPlane = BitsPerPixel;
-    ModeInfo->Frequency = 60;
+    ModeInfo->Frequency = AvailableModeInfo->Frequency;
 
     /* 960 DPI appears to be common */
     ModeInfo->XMillimeter = AvailableModeInfo->XResolution * 254 / 960;
@@ -606,7 +663,7 @@ BochsInitialize(
         return FALSE;
     }
 
-    PotentialModeCount = ARRAYSIZE(BochsAvailableResolutions) * ARRAYSIZE(BochsAvailableColorDepths);
+    PotentialModeCount = ARRAYSIZE(BochsAvailableResolutions) * ARRAYSIZE(BochsAvailableColorDepths) * DeviceExtension->RefreshRateCount;
     DeviceExtension->AvailableModeInfo = VideoPortAllocatePool(HwDeviceExtension,
                                                                VpPagedPool,
                                                                PotentialModeCount * sizeof(BOCHS_MODE),
