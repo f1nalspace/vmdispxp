@@ -12,6 +12,9 @@
  *
  * A switch takes a refresh rate after the depth; without one Windows chooses it.
  *
+ * With -pruning 0 or 1 it writes PruningMode into the display adapter's settings -- the box "Hide modes that this monitor cannot display"
+ * of the display applet -- and then lists and checks as -check does.
+ *
  * Output is German; the comments are English.
  */
 
@@ -22,6 +25,9 @@
 static FILE *reportFile;
 
 #define CHECK_SWITCH          "-check"
+#define PRUNING_SWITCH        "-pruning"
+/* EnumDisplayDevices names the adapter's settings key from the registry's root; RegOpenKeyEx wants it below HKEY_LOCAL_MACHINE. */
+#define REGISTRY_MACHINE_PREFIX "\\Registry\\Machine\\"
 #define CHECK_BITS_PER_PIXEL  32
 
 typedef struct CheckedResolution
@@ -252,6 +258,45 @@ static void CheckResolutions(void)
    }
 }
 
+/* Writes PruningMode into the first display adapter's settings key: 1 hides the modes the monitor supposedly cannot show, 0 lists every mode of the driver. */
+static int SetPruningMode(DWORD pruningMode)
+{
+   const size_t prefixLength = sizeof(REGISTRY_MACHINE_PREFIX) - 1;
+   char line[512];
+   DISPLAY_DEVICEA displayDevice;
+   const char *relativeKey;
+   HKEY settingsKey;
+   LONG openResult;
+   LONG setResult;
+   BOOL found;
+
+   ZeroMemory(&displayDevice, sizeof(displayDevice));
+   displayDevice.cb = sizeof(displayDevice);
+   found = EnumDisplayDevicesA(NULL, 0, &displayDevice, 0);
+   if (!found)
+   {
+      ReportLine("Pruning     no display device");
+      return 1;
+   }
+   relativeKey = displayDevice.DeviceKey;
+   if (_strnicmp(relativeKey, REGISTRY_MACHINE_PREFIX, prefixLength) == 0)
+   {
+      relativeKey += prefixLength;
+   }
+   openResult = RegOpenKeyExA(HKEY_LOCAL_MACHINE, relativeKey, 0, KEY_SET_VALUE, &settingsKey);
+   if (openResult != ERROR_SUCCESS)
+   {
+      sprintf(line, "Pruning     cannot open HKLM\\%s (%ld)", relativeKey, (long)openResult);
+      ReportLine(line);
+      return 1;
+   }
+   setResult = RegSetValueExA(settingsKey, "PruningMode", 0, REG_DWORD, (const BYTE *)&pruningMode, sizeof(pruningMode));
+   RegCloseKey(settingsKey);
+   sprintf(line, "Pruning     PruningMode = %lu in HKLM\\%s  ->  %s (%ld)", (unsigned long)pruningMode, relativeKey, setResult == ERROR_SUCCESS ? "written" : "failed", (long)setResult);
+   ReportLine(line);
+   return setResult == ERROR_SUCCESS ? 0 : 1;
+}
+
 int main(int argc, char **argv)
 {
    const char *outputPath = "modes.txt";
@@ -261,12 +306,29 @@ int main(int argc, char **argv)
    int bitsPerPixel = 32;
    int refreshRate = 0;
 
-   /* modes.exe [ausgabedatei] [breite hoehe [bits [hz]]], or modes.exe [ausgabedatei] -check */
+   /* modes.exe [ausgabedatei] [breite hoehe [bits [hz]]], modes.exe [ausgabedatei] -check, or modes.exe [ausgabedatei] -pruning 0|1 */
    if (argc > argumentIndex && argv[argumentIndex][0] != '\0' && (argv[argumentIndex][0] < '0' || argv[argumentIndex][0] > '9'))
    {
       outputPath = argv[argumentIndex];
       argumentIndex++;
    }
+   if (argc > argumentIndex + 1 && strcmp(argv[argumentIndex], PRUNING_SWITCH) == 0)
+   {
+      int failed;
+      DWORD pruningMode = (DWORD)atoi(argv[argumentIndex + 1]);
+      reportFile = fopen(outputPath, "w");
+      ReportLine("modes -- display modes of the display driver");
+      failed = SetPruningMode(pruningMode);
+      ReportLine("");
+      ListModes();
+      CheckResolutions();
+      if (reportFile != NULL)
+      {
+         fclose(reportFile);
+      }
+      return failed;
+   }
+
    if (argc > argumentIndex + 1)
    {
       width = atoi(argv[argumentIndex]);
