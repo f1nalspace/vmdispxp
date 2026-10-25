@@ -1,0 +1,43 @@
+; Monitor driver for the monitor of QEMU's standard VGA (its EDID names it RHT1234), for vmdispxp.
+;
+; With Microsoft's "Plug and Play Monitor" Windows XP listed and accepted every mode at 60 Hz only,
+; although vmdispxp offers each mode at the refresh rates of the host's screen as well (120 and 144 on a 144 Hz screen)
+; and the EDID's range limits reach them. Frequency ranges in the monitor's driver key lift that:
+; with them XP lists and sets the host's rates, measured for every resolution up to 2560x1600 (those with 2048 lines and more stayed at 60 Hz).
+;
+; The ranges are wide on purpose -- the display driver offers only the host's rates anyway, they only must not hold XP back.
+; MaxResolution matches the preferred mode of the EDID that vm2/winxp.sh gives the standard VGA (3840x2160).
+
+[Version]
+Signature   = "$Windows NT$"
+Class       = Monitor
+ClassGUID   = {4D36E96E-E325-11CE-BFC1-08002BE10318}
+Provider    = %Provider%
+DriverVer   = 10/25/2026,1.0.0.0
+
+[Manufacturer]
+%Provider% = Fvm3dx_Monitors
+
+[Fvm3dx_Monitors]
+%Fvm3dx.MonitorDesc% = Fvm3dx_Monitor_Install, Monitor\RHT1234
+
+[Fvm3dx_Monitor_Install]
+DelReg = Fvm3dx_Monitor_DelReg
+AddReg = Fvm3dx_Monitor_AddReg
+
+; What Microsoft's monitor.inf may have left in the key.
+[Fvm3dx_Monitor_DelReg]
+HKR,MODES
+HKR,,MaxResolution
+HKR,,DPMS
+HKR,,ICMProfile
+
+; Horizontal 30-255 kHz and vertical 24-255 Hz: one byte of the EDID's range limits holds 255 for either.
+[Fvm3dx_Monitor_AddReg]
+HKR,,DPMS,,1
+HKR,,MaxResolution,,"3840,2160"
+HKR,"MODES\3840,2160",Mode1,,"30.0-255.0,24.0-255.0,+,+"
+
+[Strings]
+Provider            = "fvm3dx"
+Fvm3dx.MonitorDesc  = "QEMU Monitor (fvm3dx)"
