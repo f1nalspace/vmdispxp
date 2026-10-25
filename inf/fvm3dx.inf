@@ -56,6 +56,11 @@ HKR,, DefaultSettings.XResolution, %REG_DWORD%, 1024
 HKR,, DefaultSettings.YResolution, %REG_DWORD%, 768
 HKR,, DefaultSettings.BitsPerPel,  %REG_DWORD%, 32
 
+; 0 unticks "Hide modes that this monitor cannot display": with the default XP listed and accepted every mode at 60 Hz only,
+; although the driver offers the host screen's rates (120 and 144 on a 144 Hz screen) and the EDID's range limits reach them.
+; Written only where no value stands, so a choice made in the display applet stays, on a repair too.
+HKR,, PruningMode, %REG_DWORD_NOCLOBBER%, 0
+
 ; The escape hands out the key name, opengl32.dll looks the library up here. Under NT that
 ; name is a *subkey* with four values, not a plain REG_SZ value like on Windows 9x -- read
 ; out of XPs own opengl32.dll.
@@ -88,6 +93,7 @@ qemudisp.dll = 1
 REG_SZ       = 0x00000000
 REG_MULTI_SZ = 0x00010000
 REG_DWORD    = 0x00010001
+REG_DWORD_NOCLOBBER = 0x00010003
 
 Provider           = "fvm3dx"
 DiskName           = "fvm3dx display driver disk"
